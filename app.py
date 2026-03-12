@@ -29,7 +29,7 @@ if st.button("Login"):
         st.success("Admin Login Successful")
         st.rerun()
 
-    elif user == "user" and pwd == "1234":
+    elif user == "User" and pwd == "1234":
         st.session_state.role = "user"
         st.success("User Login Successful")
         st.rerun()
@@ -251,3 +251,4 @@ if st.session_state.role == "admin":
 
 
     st.dataframe(data_log)
+
