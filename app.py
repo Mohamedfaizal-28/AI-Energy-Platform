@@ -9,12 +9,18 @@ from sklearn.linear_model import LinearRegression
 
 # ------------------ LOGIN SYSTEM ------------------
 
+# ---------------- LOGIN SYSTEM ----------------
+
 def check_login(username, password):
     return username == "Admin" and password == "1234"
 
+
+# Create role variable in session state
 if "role" not in st.session_state:
     st.session_state.role = None
 
+
+# Show login page if not logged in
 if st.session_state.role is None:
 
     st.title("🔐 AI Energy Platform Login")
@@ -22,22 +28,28 @@ if st.session_state.role is None:
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
 
-if st.button("Login"):
+    if st.button("Login"):
 
-    if user == "Admin" and pwd == "1234":
-        st.session_state.role = "Admin"
-        st.success("Admin Login Successful")
-        st.rerun()
+        if check_login(user, pwd):
+            st.session_state.role = "Admin"
+            st.success("Admin Login Successful")
+            st.rerun()
 
-    elif user == "User" and pwd == "1234":
-        st.session_state.role = "User"
-        st.success("User Login Successful")
-        st.rerun()
+        elif user == "User" and pwd == "1234":
+            st.session_state.role = "User"
+            st.success("User Login Successful")
+            st.rerun()
 
-    else:
-        st.error("Invalid credentials")
-        
+        else:
+            st.error("Invalid credentials")
+
+    # STOP dashboard from loading
     st.stop()
+
+
+# ---------------- DASHBOARD STARTS HERE ----------------
+
+st.title("⚡ AI Smart Energy Management System")
 
 # ------------------ DATABASE SETUP ------------------
 
@@ -251,6 +263,7 @@ if st.session_state.role == "Admin":
 
 
     st.dataframe(data_log)
+
 
 
 
