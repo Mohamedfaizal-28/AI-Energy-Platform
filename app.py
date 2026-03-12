@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression
 # ------------------ LOGIN SYSTEM ------------------
 
 def check_login(username, password):
-    return username == "admin" and password == "1234"
+    return username == "Admin" and password == "1234"
 
 if "role" not in st.session_state:
     st.session_state.role = None
@@ -22,15 +22,20 @@ if st.session_state.role is None:
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
-        if check_login(user, pwd):
-            st.session_state.role = "admin"
-            st.success("Admin Login Successful")
-            st.rerun()
-        else:
-            st.session_state.role = "user"
-            st.success("User Mode Access Granted")
-            st.rerun()
+if st.button("Login"):
+
+    if user == "Admin" and pwd == "1234":
+        st.session_state.role = "Admin"
+        st.success("Admin Login Successful")
+        st.rerun()
+
+    elif user == "user" and pwd == "1234":
+        st.session_state.role = "user"
+        st.success("User Login Successful")
+        st.rerun()
+
+    else:
+        st.error("Invalid credentials")
 
     st.stop()
 
@@ -243,5 +248,6 @@ if st.session_state.role == "admin":
         "SELECT * FROM energy_log ORDER BY id DESC LIMIT 10",
         conn
     )
+
 
     st.dataframe(data_log)
