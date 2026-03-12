@@ -30,7 +30,7 @@ if st.button("Login"):
         st.rerun()
 
     elif user == "User" and pwd == "1234":
-        st.session_state.role = "user"
+        st.session_state.role = "User"
         st.success("User Login Successful")
         st.rerun()
 
@@ -67,7 +67,7 @@ st.sidebar.write(f"Threshold: {threshold} kW")
 
 # ------------------ RETRAIN (ADMIN ONLY) ------------------
 
-if st.session_state.role == "admin":
+if st.session_state.role == "Admin":
     if st.sidebar.button("🔄 Retrain AI Model"):
 
         df = pd.read_sql_query(
@@ -241,7 +241,7 @@ st.download_button("📄 Download Report",
 
 # ------------------ DATABASE VIEW (ADMIN ONLY) ------------------
 
-if st.session_state.role == "admin":
+if st.session_state.role == "Admin":
     st.subheader("📊 Logged Prediction History")
 
     data_log = pd.read_sql_query(
@@ -251,6 +251,7 @@ if st.session_state.role == "admin":
 
 
     st.dataframe(data_log)
+
 
 
 
