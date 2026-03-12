@@ -314,5 +314,5 @@ if st.session_state.role == "Admin":
     )
 
     st.dataframe(data_log)
-```
+
 
