@@ -36,7 +36,7 @@ if st.button("Login"):
 
     else:
         st.error("Invalid credentials")
-if st.session_state.role is None:
+        
     st.stop()
 
 # ------------------ DATABASE SETUP ------------------
@@ -251,5 +251,6 @@ if st.session_state.role == "admin":
 
 
     st.dataframe(data_log)
+
 
 
