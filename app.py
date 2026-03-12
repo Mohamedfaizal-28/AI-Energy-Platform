@@ -1,3 +1,4 @@
+```python
 import sqlite3
 from datetime import datetime
 import streamlit as st
@@ -12,10 +13,8 @@ from sklearn.linear_model import LinearRegression
 def check_login(username, password):
     return username == "Admin" and password == "1234"
 
-
 if "role" not in st.session_state:
     st.session_state.role = None
-
 
 if st.session_state.role is None:
 
@@ -43,12 +42,10 @@ if st.session_state.role is None:
 
     st.stop()
 
-
 # ---------------- DASHBOARD ----------------
 
 st.title("⚡ AI Smart Energy Management System")
 st.subheader("Predictive Load Monitoring Dashboard")
-
 
 # ---------------- DATABASE ----------------
 
@@ -70,7 +67,6 @@ CREATE TABLE IF NOT EXISTS energy_log (
 
 conn.commit()
 
-
 # ---------------- SIDEBAR ----------------
 
 threshold = 4.5
@@ -83,7 +79,6 @@ if st.sidebar.button("Logout"):
     st.session_state.role = None
     st.rerun()
 
-
 # ---------------- LOAD MODEL SAFELY ----------------
 
 try:
@@ -91,7 +86,6 @@ try:
 except:
     st.error("AI model not found. Please upload energy_model.pkl")
     st.stop()
-
 
 # ---------------- ADMIN RETRAIN ----------------
 
@@ -119,28 +113,20 @@ if st.session_state.role == "Admin":
         else:
             st.sidebar.warning("Not enough data to retrain")
 
-
 # ---------------- USER INPUT ----------------
 
 hour = st.slider("Select Hour (0-23)", 0, 23, 12)
-
 voltage = st.number_input("Voltage (V)", value=230.0)
-
 current = st.number_input("Current (A)", value=2.0)
-
 temp = st.number_input("Temperature (°C)", value=30.0)
-
 
 # ---------------- PREDICTION ----------------
 
 input_data = np.array([[hour, voltage, current, temp]])
-
 prediction = model.predict(input_data)[0]
-
 prediction = round(prediction, 2)
 
 st.metric("Predicted Load (kW)", prediction)
-
 
 # ---------------- OVERLOAD LOGIC ----------------
 
@@ -149,21 +135,16 @@ if prediction > threshold:
     required_reduction = round(prediction - threshold, 2)
 
     st.error("⚠ OVERLOAD DETECTED")
-
     st.warning(f"Required Load Reduction: {required_reduction} kW")
 
     adjusted_load = threshold
-
     st.success(f"Adjusted Load: {adjusted_load} kW")
 
     energy_saved = required_reduction * 1
-
     st.info(f"Estimated Energy Saved: {round(energy_saved,2)} kWh")
 
 else:
-
     st.success("✅ NORMAL LOAD - All Systems Stable")
-
 
 # ---------------- SAVE DATA ----------------
 
@@ -191,50 +172,74 @@ if st.session_state.last_entry != current_entry:
     ))
 
     conn.commit()
-
     st.session_state.last_entry = current_entry
 
+# ---------------- SMART RELAY CONTROL ----------------
 
-# ---------------- RELAY SIMULATION ----------------
+st.subheader("🔌 Smart Relay Control")
 
-st.subheader("🔌 Relay Control Simulation")
+relay_loads = {
+    "Relay1": 0.2,
+    "Relay2": 0.5,
+    "Relay3": 1.0
+}
+
+relay_status = {
+    "Relay1": True,
+    "Relay2": True,
+    "Relay3": True
+}
 
 if prediction > threshold:
 
-    st.error("Relay 1 (Decorative Load): OFF")
-    st.error("Relay 2 (Extra Fans): OFF")
-    st.success("Relay 3 (Essential Load): ON")
+    overload = prediction - threshold
+    st.error(f"⚠ Overload detected: {round(overload,2)} kW")
 
-else:
+    for relay, load in relay_loads.items():
 
-    st.success("All Relays: ON")
+        if overload > 0:
+            relay_status[relay] = False
+            overload -= load
+        else:
+            break
 
+for relay, status in relay_status.items():
+
+    if status:
+        st.success(f"{relay}: ON")
+    else:
+        st.error(f"{relay}: OFF")
+
+# ---------------- MANUAL RELAY CONTROL ----------------
+
+st.subheader("🕹 Manual Relay Control")
+
+relay1 = st.toggle("Relay 1", value=relay_status["Relay1"])
+relay2 = st.toggle("Relay 2", value=relay_status["Relay2"])
+relay3 = st.toggle("Relay 3", value=relay_status["Relay3"])
+
+st.write("Current Relay States:")
+st.write("Relay 1:", "ON" if relay1 else "OFF")
+st.write("Relay 2:", "ON" if relay2 else "OFF")
+st.write("Relay 3:", "ON" if relay3 else "OFF")
 
 # ---------------- ELECTRICITY BILL ----------------
 
 st.subheader("💰 Estimated Electricity Cost")
 
 electricity_rate = 8
-
 daily_energy = prediction * 24
-
 monthly_energy = daily_energy * 30
-
 monthly_bill = monthly_energy * electricity_rate
 
 st.write(f"Daily Consumption: {round(daily_energy,2)} kWh")
-
 st.write(f"Monthly Consumption: {round(monthly_energy,2)} kWh")
-
 st.success(f"Estimated Monthly Bill: ₹ {round(monthly_bill,2)}")
-
 
 # ---------------- LOAD CURVE GRAPH ----------------
 
 data = pd.read_csv("load_data.csv")
-
 hours = data["hour"]
-
 actual_load = data["load"]
 
 fig, ax = plt.subplots()
@@ -256,15 +261,11 @@ ax.axhline(y=threshold, linestyle='--', label="Threshold")
 ax.scatter(hour, prediction, color='green', s=120, label="Current Prediction")
 
 ax.set_xlabel("Hour")
-
 ax.set_ylabel("Load (kW)")
-
 ax.set_title("Realistic 24-Hour Load Curve")
-
 ax.legend()
 
 st.pyplot(fig)
-
 
 # ---------------- SOLAR VS LOAD ----------------
 
@@ -273,19 +274,14 @@ solar_generation = [0,0,0,0,0,0.5,1,2,3,4,5,5.5,6,6,5.5,5,4,3,2,1,0.5,0,0,0]
 fig2, ax2 = plt.subplots()
 
 ax2.plot(hours, actual_load, label="Load")
-
 ax2.plot(hours, solar_generation, label="Solar Generation")
 
 ax2.set_xlabel("Hour")
-
 ax2.set_ylabel("Power (kW)")
-
 ax2.set_title("Load vs Solar Generation")
-
 ax2.legend()
 
 st.pyplot(fig2)
-
 
 # ---------------- DOWNLOAD REPORT ----------------
 
@@ -307,7 +303,6 @@ st.download_button(
     file_name="energy_report.txt"
 )
 
-
 # ---------------- ADMIN HISTORY ----------------
 
 if st.session_state.role == "Admin":
@@ -320,3 +315,4 @@ if st.session_state.role == "Admin":
     )
 
     st.dataframe(data_log)
+```
