@@ -1,4 +1,3 @@
-```python
 import sqlite3
 from datetime import datetime
 import streamlit as st
@@ -316,3 +315,4 @@ if st.session_state.role == "Admin":
 
     st.dataframe(data_log)
 ```
+
