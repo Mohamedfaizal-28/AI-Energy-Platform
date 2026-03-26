@@ -6,24 +6,24 @@ import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
-import requests  # Add this if not there
+import requests
 
-# YOUR FIREBASE URL
-FIREBASE_URL = "https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/"
+# YOUR FIREBASE URL (Note the trailing slash /)
+FIREBASE_URL = "https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/:"
 
 def update_physical_relays(r1, r2, r3):
     """Sends 1 for ON, 0 for OFF to Firebase"""
-    data = {"relay1": r1, "relay2": r2, "relay3": r3}
+    # Convert Boolean (True/False) to Integer (1/0)
+    data = {"relay1": int(r1), "relay2": int(r2), "relay3": int(r3)}
     try:
         requests.put(f"{FIREBASE_URL}relays.json", json=data)
     except Exception as e:
-        print(f"Connection Error: {e}")
+        pass # Silently fail if no internet
 
-
-# ------------------ LOGIN SYSTEM ------------------
+# ---------------- LOGIN SYSTEM ----------------
 
 def check_login(username, password):
-    return username == "admin" and password == "1234"
+    return username == "Admin" and password == "1234"
 
 if "role" not in st.session_state:
     st.session_state.role = None
@@ -35,19 +35,31 @@ if st.session_state.role is None:
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    login_btn = st.button("Login")
+
+    if login_btn:
+
         if check_login(user, pwd):
-            st.session_state.role = "admin"
+            st.session_state.role = "Admin"
             st.success("Admin Login Successful")
             st.rerun()
-        else:
-            st.session_state.role = "user"
-            st.success("User Mode Access Granted")
+
+        elif user == "User" and pwd == "1234":
+            st.session_state.role = "User"
+            st.success("User Login Successful")
             st.rerun()
+
+        else:
+            st.error("Invalid credentials")
 
     st.stop()
 
-# ------------------ DATABASE SETUP ------------------
+# ---------------- DASHBOARD ----------------
+
+st.title("⚡ AI Smart Energy Management System")
+st.subheader("Predictive Load Monitoring Dashboard")
+
+# ---------------- DATABASE ----------------
 
 conn = sqlite3.connect("energy_data.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -64,18 +76,33 @@ CREATE TABLE IF NOT EXISTS energy_log (
     status TEXT
 )
 """)
+
 conn.commit()
 
-# ------------------ SIDEBAR ------------------
+# ---------------- SIDEBAR ----------------
 
 threshold = 4.5
+
 st.sidebar.title("⚙ System Control Panel")
 st.sidebar.write(f"Logged in as: {st.session_state.role}")
 st.sidebar.write(f"Threshold: {threshold} kW")
 
-# ------------------ RETRAIN (ADMIN ONLY) ------------------
+if st.sidebar.button("Logout"):
+    st.session_state.role = None
+    st.rerun()
 
-if st.session_state.role == "admin":
+# ---------------- LOAD MODEL SAFELY ----------------
+
+try:
+    model = joblib.load("energy_model.pkl")
+except:
+    st.error("AI model not found. Please upload energy_model.pkl")
+    st.stop()
+
+# ---------------- ADMIN RETRAIN ----------------
+
+if st.session_state.role == "Admin":
+
     if st.sidebar.button("🔄 Retrain AI Model"):
 
         df = pd.read_sql_query(
@@ -84,6 +111,7 @@ if st.session_state.role == "admin":
         )
 
         if len(df) > 10:
+
             X = df[['hour','voltage','current','temperature']]
             y = df['predicted_load']
 
@@ -91,35 +119,28 @@ if st.session_state.role == "admin":
             new_model.fit(X, y)
 
             joblib.dump(new_model, "energy_model.pkl")
+
             st.sidebar.success("AI Model Retrained Successfully!")
+
         else:
-            st.sidebar.warning("Not enough data to retrain.")
+            st.sidebar.warning("Not enough data to retrain")
 
-# ------------------ PAGE TITLE ------------------
-
-st.title("⚡ AI Smart Energy Management System")
-st.subheader("Predictive Load Monitoring Dashboard")
-
-# ------------------ LOAD MODEL ------------------
-
-model = joblib.load("energy_model.pkl")
-
-# ------------------ USER INPUTS ------------------
+# ---------------- USER INPUT ----------------
 
 hour = st.slider("Select Hour (0-23)", 0, 23, 12)
 voltage = st.number_input("Voltage (V)", value=230.0)
 current = st.number_input("Current (A)", value=2.0)
 temp = st.number_input("Temperature (°C)", value=30.0)
 
-# ------------------ PREDICTION ------------------
+# ---------------- PREDICTION ----------------
 
-input_data = [[hour, voltage, current, temp]]
+input_data = np.array([[hour, voltage, current, temp]])
 prediction = model.predict(input_data)[0]
 prediction = round(prediction, 2)
 
 st.metric("Predicted Load (kW)", prediction)
 
-# ------------------ OVERLOAD LOGIC ------------------
+# ---------------- OVERLOAD LOGIC ----------------
 
 if prediction > threshold:
 
@@ -137,7 +158,7 @@ if prediction > threshold:
 else:
     st.success("✅ NORMAL LOAD - All Systems Stable")
 
-# ------------------ SMART DATABASE SAVE ------------------
+# ---------------- SAVE DATA ----------------
 
 if "last_entry" not in st.session_state:
     st.session_state.last_entry = None
@@ -165,25 +186,68 @@ if st.session_state.last_entry != current_entry:
     conn.commit()
     st.session_state.last_entry = current_entry
 
-# ------------------ RELAY SIMULATION ------------------
+# ---------------- SMART RELAY CONTROL ----------------
 
-# ------------------ RELAY SIMULATION (NOW LINKED TO ESP32) ------------------
-st.subheader("🔌 Relay Control & ESP32 Sync")
+st.subheader("🔌 Smart Relay Control")
+
+relay_loads = {
+    "Relay1": 0.2,
+    "Relay2": 0.5,
+    "Relay3": 1.0
+}
+
+relay_status = {
+    "Relay1": True,
+    "Relay2": True,
+    "Relay3": True
+}
 
 if prediction > threshold:
-    st.error("Relay 1 (Decorative Load): OFF")
-    st.error("Relay 2 (Extra Fans): OFF")
-    st.success("Relay 3 (Essential Load): ON")
-    
-    # Update Firebase: R1=0, R2=0, R3=1
-    update_physical_relays(0, 0, 1)
-else:
-    st.success("All Relays: ON")
-    
-    # Update Firebase: All ON = 1
-    update_physical_relays(1, 1, 1)
 
-# ------------------ ELECTRICITY BILL ------------------
+    overload = prediction - threshold
+    st.error(f"⚠ Overload detected: {round(overload,2)} kW")
+
+    for relay, load in relay_loads.items():
+
+        if overload > 0:
+            relay_status[relay] = False
+            overload -= load
+        else:
+            break
+
+for relay, status in relay_status.items():
+
+    if status:
+        st.success(f"{relay}: ON")
+    else:
+        st.error(f"{relay}: OFF")
+
+# ---------------- MANUAL RELAY CONTROL ----------------
+
+# ---------------- MANUAL RELAY CONTROL ----------------
+
+st.subheader("🕹 Manual Relay Control")
+
+# 1. Initialize session state for tracking changes if not already there
+if "last_firebase_state" not in st.session_state:
+    st.session_state.last_firebase_state = (None, None, None)
+
+# 2. Get the toggle values
+relay1 = st.toggle("Relay 1", value=relay_status["Relay1"])
+relay2 = st.toggle("Relay 2", value=relay_status["Relay2"])
+relay3 = st.toggle("Relay 3", value=relay_status["Relay3"])
+
+current_state = (relay1, relay2, relay3)
+
+# 3. ONLY update Firebase if the state is DIFFERENT from the last loop
+if current_state != st.session_state.last_firebase_state:
+    update_physical_relays(relay1, relay2, relay3)
+    st.session_state.last_firebase_state = current_state
+    st.toast("Firebase Updated!") # Small notification to confirm it worked
+
+
+
+# ---------------- ELECTRICITY BILL ----------------
 
 st.subheader("💰 Estimated Electricity Cost")
 
@@ -196,7 +260,7 @@ st.write(f"Daily Consumption: {round(daily_energy,2)} kWh")
 st.write(f"Monthly Consumption: {round(monthly_energy,2)} kWh")
 st.success(f"Estimated Monthly Bill: ₹ {round(monthly_bill,2)}")
 
-# ------------------ LOAD CURVE GRAPH ------------------
+# ---------------- LOAD CURVE GRAPH ----------------
 
 data = pd.read_csv("load_data.csv")
 hours = data["hour"]
@@ -206,9 +270,15 @@ fig, ax = plt.subplots()
 
 ax.plot(hours, actual_load, marker='o', label="Load")
 
-ax.fill_between(hours, actual_load, threshold,
-                where=(actual_load > threshold),
-                color='red', alpha=0.3, label="Overload Zone")
+ax.fill_between(
+    hours,
+    actual_load,
+    threshold,
+    where=(actual_load > threshold),
+    color='red',
+    alpha=0.3,
+    label="Overload Zone"
+)
 
 ax.axhline(y=threshold, linestyle='--', label="Threshold")
 
@@ -221,11 +291,12 @@ ax.legend()
 
 st.pyplot(fig)
 
-# ------------------ SOLAR VS LOAD ------------------
+# ---------------- SOLAR VS LOAD ----------------
 
 solar_generation = [0,0,0,0,0,0.5,1,2,3,4,5,5.5,6,6,5.5,5,4,3,2,1,0.5,0,0,0]
 
 fig2, ax2 = plt.subplots()
+
 ax2.plot(hours, actual_load, label="Load")
 ax2.plot(hours, solar_generation, label="Solar Generation")
 
@@ -236,7 +307,7 @@ ax2.legend()
 
 st.pyplot(fig2)
 
-# ------------------ DOWNLOAD REPORT ------------------
+# ---------------- DOWNLOAD REPORT ----------------
 
 report_data = f"""
 AI Smart Energy Management Report
@@ -250,13 +321,16 @@ Threshold: {threshold} kW
 Estimated Monthly Bill: ₹ {round(monthly_bill,2)}
 """
 
-st.download_button("📄 Download Report",
-                   report_data,
-                   file_name="energy_report.txt")
+st.download_button(
+    "📄 Download Report",
+    report_data,
+    file_name="energy_report.txt"
+)
 
-# ------------------ DATABASE VIEW (ADMIN ONLY) ------------------
+# ---------------- ADMIN HISTORY ----------------
 
-if st.session_state.role == "admin":
+if st.session_state.role == "Admin":
+
     st.subheader("📊 Logged Prediction History")
 
     data_log = pd.read_sql_query(
@@ -265,3 +339,4 @@ if st.session_state.role == "admin":
     )
 
     st.dataframe(data_log)
+
