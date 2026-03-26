@@ -9,7 +9,7 @@ from sklearn.linear_model import LinearRegression
 import requests
 
 # YOUR FIREBASE URL (Note the trailing slash /)
-FIREBASE_URL = "https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/"
+FIREBASE_URL = "https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/:"
 
 def update_physical_relays(r1, r2, r3):
     """Sends 1 for ON, 0 for OFF to Firebase"""
