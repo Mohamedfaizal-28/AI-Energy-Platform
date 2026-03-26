@@ -224,21 +224,27 @@ for relay, status in relay_status.items():
 
 # ---------------- MANUAL RELAY CONTROL ----------------
 
+# ---------------- MANUAL RELAY CONTROL ----------------
+
 st.subheader("🕹 Manual Relay Control")
 
-# These toggles are initialized by the AI (relay_status) but can be changed by you
+# 1. Initialize session state for tracking changes if not already there
+if "last_firebase_state" not in st.session_state:
+    st.session_state.last_firebase_state = (None, None, None)
+
+# 2. Get the toggle values
 relay1 = st.toggle("Relay 1", value=relay_status["Relay1"])
 relay2 = st.toggle("Relay 2", value=relay_status["Relay2"])
 relay3 = st.toggle("Relay 3", value=relay_status["Relay3"])
 
-st.write("Current Relay States:")
-st.write("Relay 1:", "ON" if relay1 else "OFF")
-st.write("Relay 2:", "ON" if relay2 else "OFF")
-st.write("Relay 3:", "ON" if relay3 else "OFF")
+current_state = (relay1, relay2, relay3)
 
-# --- ADD THIS LINE HERE ---
-# This sends the final state (AI + Manual) to your ESP32 via Firebase
-update_physical_relays(relay1, relay2, relay3)
+# 3. ONLY update Firebase if the state is DIFFERENT from the last loop
+if current_state != st.session_state.last_firebase_state:
+    update_physical_relays(relay1, relay2, relay3)
+    st.session_state.last_firebase_state = current_state
+    st.toast("Firebase Updated!") # Small notification to confirm it worked
+
 
 
 # ---------------- ELECTRICITY BILL ----------------
