@@ -14,7 +14,7 @@ from firebase_admin import credentials, db
 # ---------------- FIREBASE INIT ----------------
 if not firebase_admin._apps:
 
-    firebase_secret = st.secrets["firebase"]
+    firebase_secret = dict(st.secrets["firebase"])
 
     cred = credentials.Certificate(firebase_secret)
 
