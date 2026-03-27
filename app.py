@@ -13,13 +13,16 @@ from firebase_admin import credentials, db
 
 # ---------------- FIREBASE INIT ----------------
 if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase_key.json")  # 🔴 PUT FILE IN SAME FOLDER
+
+    firebase_secret = st.secrets["firebase"]
+
+    cred = credentials.Certificate(firebase_secret)
+
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/'
     })
 
 ref = db.reference('/')
-
 # ---------------- LOGIN ----------------
 def check_login(username, password):
     return username == "Admin" and password == "1234"
