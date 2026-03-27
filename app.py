@@ -7,6 +7,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
+# 🔥 NEW: Firebase
+import firebase_admin
+from firebase_admin import credentials, db
+
+# ---------------- FIREBASE INIT ----------------
+if not firebase_admin._apps:
+    firebase_secret = dict(st.secrets["firebase"])
+    cred = credentials.Certificate(firebase_secret)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/'
+    })
+
+ref = db.reference('/')
+
 # ---------------- LOGIN SYSTEM ----------------
 
 def check_login(username, password):
@@ -115,9 +129,15 @@ if st.session_state.role == "Admin":
 # ---------------- USER INPUT ----------------
 
 hour = st.slider("Select Hour (0-23)", 0, 23, 12)
-voltage = st.number_input("Voltage (V)", value=230.0)
-current = st.number_input("Current (A)", value=2.0)
-temp = st.number_input("Temperature (°C)", value=30.0)
+
+data = ref.child("sensor_data").get()
+
+if data:
+    voltage = data.get("voltage") or 230
+    current = data.get("current") or 2
+    temp = data.get("temperature") or 30
+else:
+    voltage, current, temp = 230, 2, 30
 
 # ---------------- PREDICTION ----------------
 
@@ -221,7 +241,12 @@ st.write("Current Relay States:")
 st.write("Relay 1:", "ON" if relay1 else "OFF")
 st.write("Relay 2:", "ON" if relay2 else "OFF")
 st.write("Relay 3:", "ON" if relay3 else "OFF")
-
+# 🔥 SEND RELAY DATA TO FIREBASE
+ref.child("relay_control").set({
+    "relay1": int(relay1),
+    "relay2": int(relay2),
+    "relay3": int(relay3)
+})
 # ---------------- ELECTRICITY BILL ----------------
 
 st.subheader("💰 Estimated Electricity Cost")
