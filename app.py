@@ -7,23 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-# 🔥 NEW: Firebase
-import firebase_admin
-from firebase_admin import credentials, db
+# ---------------- LOGIN SYSTEM ----------------
 
-# ---------------- FIREBASE INIT ----------------
-if not firebase_admin._apps:
-
-    firebase_secret = dict(st.secrets["firebase"])
-
-    cred = credentials.Certificate(firebase_secret)
-
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/'
-    })
-
-ref = db.reference('/')
-# ---------------- LOGIN ----------------
 def check_login(username, password):
     return username == "Admin" and password == "1234"
 
@@ -37,7 +22,9 @@ if st.session_state.role is None:
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    login_btn = st.button("Login")
+
+    if login_btn:
 
         if check_login(user, pwd):
             st.session_state.role = "Admin"
@@ -55,9 +42,12 @@ if st.session_state.role is None:
     st.stop()
 
 # ---------------- DASHBOARD ----------------
+
 st.title("⚡ AI Smart Energy Management System")
+st.subheader("Predictive Load Monitoring Dashboard")
 
 # ---------------- DATABASE ----------------
+
 conn = sqlite3.connect("energy_data.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -76,96 +66,252 @@ CREATE TABLE IF NOT EXISTS energy_log (
 
 conn.commit()
 
-# ---------------- LOAD MODEL ----------------
-model = joblib.load("energy_model.pkl")
-
-# ---------------- GET DATA FROM FIREBASE ----------------
-data = ref.child("sensor_data").get()
-
-if data:
-    voltage = data.get("voltage", 0)
-    current = data.get("current", 0)
-    temp = data.get("temperature", 0)
-else:
-    voltage, current, temp = 0, 0, 0
-
-hour = datetime.now().hour
-
-# ---------------- SHOW SENSOR DATA ----------------
-st.subheader("📡 Live Sensor Data")
-st.write(f"Voltage: {voltage} V")
-st.write(f"Current: {current} A")
-st.write(f"Temperature: {temp} °C")
-
-# ---------------- PREDICTION ----------------
-input_data = np.array([[hour, voltage, current, temp]])
-prediction = round(model.predict(input_data)[0], 2)
-
-st.metric("Predicted Load (kW)", prediction)
+# ---------------- SIDEBAR ----------------
 
 threshold = 4.5
 
-# ---------------- OVERLOAD LOGIC ----------------
-if prediction > threshold:
-    st.error("⚠ OVERLOAD DETECTED")
-else:
-    st.success("✅ NORMAL LOAD")
+st.sidebar.title("⚙ System Control Panel")
+st.sidebar.write(f"Logged in as: {st.session_state.role}")
+st.sidebar.write(f"Threshold: {threshold} kW")
 
-# ---------------- AUTO RELAY CONTROL ----------------
+if st.sidebar.button("Logout"):
+    st.session_state.role = None
+    st.rerun()
+
+# ---------------- LOAD MODEL SAFELY ----------------
+
+try:
+    model = joblib.load("energy_model.pkl")
+except:
+    st.error("AI model not found. Please upload energy_model.pkl")
+    st.stop()
+
+# ---------------- ADMIN RETRAIN ----------------
+
+if st.session_state.role == "Admin":
+
+    if st.sidebar.button("🔄 Retrain AI Model"):
+
+        df = pd.read_sql_query(
+            "SELECT hour, voltage, current, temperature, predicted_load FROM energy_log",
+            conn
+        )
+
+        if len(df) > 10:
+
+            X = df[['hour','voltage','current','temperature']]
+            y = df['predicted_load']
+
+            new_model = LinearRegression()
+            new_model.fit(X, y)
+
+            joblib.dump(new_model, "energy_model.pkl")
+
+            st.sidebar.success("AI Model Retrained Successfully!")
+
+        else:
+            st.sidebar.warning("Not enough data to retrain")
+
+# ---------------- USER INPUT ----------------
+
+hour = st.slider("Select Hour (0-23)", 0, 23, 12)
+voltage = st.number_input("Voltage (V)", value=230.0)
+current = st.number_input("Current (A)", value=2.0)
+temp = st.number_input("Temperature (°C)", value=30.0)
+
+# ---------------- PREDICTION ----------------
+
+input_data = np.array([[hour, voltage, current, temp]])
+prediction = model.predict(input_data)[0]
+prediction = round(prediction, 2)
+
+st.metric("Predicted Load (kW)", prediction)
+
+# ---------------- OVERLOAD LOGIC ----------------
+
+if prediction > threshold:
+
+    required_reduction = round(prediction - threshold, 2)
+
+    st.error("⚠ OVERLOAD DETECTED")
+    st.warning(f"Required Load Reduction: {required_reduction} kW")
+
+    adjusted_load = threshold
+    st.success(f"Adjusted Load: {adjusted_load} kW")
+
+    energy_saved = required_reduction * 1
+    st.info(f"Estimated Energy Saved: {round(energy_saved,2)} kWh")
+
+else:
+    st.success("✅ NORMAL LOAD - All Systems Stable")
+
+# ---------------- SAVE DATA ----------------
+
+if "last_entry" not in st.session_state:
+    st.session_state.last_entry = None
+
+current_entry = (hour, voltage, current, temp, prediction)
+
+if st.session_state.last_entry != current_entry:
+
+    status = "OVERLOAD" if prediction > threshold else "NORMAL"
+
+    cursor.execute("""
+    INSERT INTO energy_log
+    (timestamp, hour, voltage, current, temperature, predicted_load, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        hour,
+        voltage,
+        current,
+        temp,
+        prediction,
+        status
+    ))
+
+    conn.commit()
+    st.session_state.last_entry = current_entry
+
+# ---------------- SMART RELAY CONTROL ----------------
+
+st.subheader("🔌 Smart Relay Control")
+
 relay_loads = {
-    "relay1": 0.2,
-    "relay2": 0.5,
-    "relay3": 1.0
+    "Relay1": 0.2,
+    "Relay2": 0.5,
+    "Relay3": 1.0
 }
 
 relay_status = {
-    "relay1": 1,
-    "relay2": 1,
-    "relay3": 1
+    "Relay1": True,
+    "Relay2": True,
+    "Relay3": True
 }
 
 if prediction > threshold:
+
     overload = prediction - threshold
+    st.error(f"⚠ Overload detected: {round(overload,2)} kW")
 
-    for r, load in relay_loads.items():
+    for relay, load in relay_loads.items():
+
         if overload > 0:
-            relay_status[r] = 0
+            relay_status[relay] = False
             overload -= load
+        else:
+            break
 
-# ---------------- MANUAL CONTROL ----------------
-st.subheader("🕹 Manual Control")
+for relay, status in relay_status.items():
 
-relay1 = st.toggle("Relay 1", value=bool(relay_status["relay1"]))
-relay2 = st.toggle("Relay 2", value=bool(relay_status["relay2"]))
-relay3 = st.toggle("Relay 3", value=bool(relay_status["relay3"]))
+    if status:
+        st.success(f"{relay}: ON")
+    else:
+        st.error(f"{relay}: OFF")
 
-# ---------------- SEND TO FIREBASE ----------------
-ref.child("relay_control").set({
-    "relay1": int(relay1),
-    "relay2": int(relay2),
-    "relay3": int(relay3)
-})
+# ---------------- MANUAL RELAY CONTROL ----------------
 
-st.success("✅ Relay Status Sent to Firebase")
+st.subheader("🕹 Manual Relay Control")
 
-# ---------------- SAVE DATA ----------------
-cursor.execute("""
-INSERT INTO energy_log
-(timestamp, hour, voltage, current, temperature, predicted_load, status)
-VALUES (?, ?, ?, ?, ?, ?, ?)
-""", (
-    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    hour,
-    voltage,
-    current,
-    temp,
-    prediction,
-    "OVERLOAD" if prediction > threshold else "NORMAL"
-))
+relay1 = st.toggle("Relay 1", value=relay_status["Relay1"])
+relay2 = st.toggle("Relay 2", value=relay_status["Relay2"])
+relay3 = st.toggle("Relay 3", value=relay_status["Relay3"])
 
-conn.commit()
+st.write("Current Relay States:")
+st.write("Relay 1:", "ON" if relay1 else "OFF")
+st.write("Relay 2:", "ON" if relay2 else "OFF")
+st.write("Relay 3:", "ON" if relay3 else "OFF")
 
-# ---------------- DISPLAY HISTORY ----------------
-st.subheader("📊 History")
-df = pd.read_sql_query("SELECT * FROM energy_log ORDER BY id DESC LIMIT 5", conn)
-st.dataframe(df)
+# ---------------- ELECTRICITY BILL ----------------
+
+st.subheader("💰 Estimated Electricity Cost")
+
+electricity_rate = 8
+daily_energy = prediction * 24
+monthly_energy = daily_energy * 30
+monthly_bill = monthly_energy * electricity_rate
+
+st.write(f"Daily Consumption: {round(daily_energy,2)} kWh")
+st.write(f"Monthly Consumption: {round(monthly_energy,2)} kWh")
+st.success(f"Estimated Monthly Bill: ₹ {round(monthly_bill,2)}")
+
+# ---------------- LOAD CURVE GRAPH ----------------
+
+data = pd.read_csv("load_data.csv")
+hours = data["hour"]
+actual_load = data["load"]
+
+fig, ax = plt.subplots()
+
+ax.plot(hours, actual_load, marker='o', label="Load")
+
+ax.fill_between(
+    hours,
+    actual_load,
+    threshold,
+    where=(actual_load > threshold),
+    color='red',
+    alpha=0.3,
+    label="Overload Zone"
+)
+
+ax.axhline(y=threshold, linestyle='--', label="Threshold")
+
+ax.scatter(hour, prediction, color='green', s=120, label="Current Prediction")
+
+ax.set_xlabel("Hour")
+ax.set_ylabel("Load (kW)")
+ax.set_title("Realistic 24-Hour Load Curve")
+ax.legend()
+
+st.pyplot(fig)
+
+# ---------------- SOLAR VS LOAD ----------------
+
+solar_generation = [0,0,0,0,0,0.5,1,2,3,4,5,5.5,6,6,5.5,5,4,3,2,1,0.5,0,0,0]
+
+fig2, ax2 = plt.subplots()
+
+ax2.plot(hours, actual_load, label="Load")
+ax2.plot(hours, solar_generation, label="Solar Generation")
+
+ax2.set_xlabel("Hour")
+ax2.set_ylabel("Power (kW)")
+ax2.set_title("Load vs Solar Generation")
+ax2.legend()
+
+st.pyplot(fig2)
+
+# ---------------- DOWNLOAD REPORT ----------------
+
+report_data = f"""
+AI Smart Energy Management Report
+----------------------------------
+Hour: {hour}
+Voltage: {voltage} V
+Current: {current} A
+Temperature: {temp} °C
+Predicted Load: {prediction} kW
+Threshold: {threshold} kW
+Estimated Monthly Bill: ₹ {round(monthly_bill,2)}
+"""
+
+st.download_button(
+    "📄 Download Report",
+    report_data,
+    file_name="energy_report.txt"
+)
+
+# ---------------- ADMIN HISTORY ----------------
+
+if st.session_state.role == "Admin":
+
+    st.subheader("📊 Logged Prediction History")
+
+    data_log = pd.read_sql_query(
+        "SELECT * FROM energy_log ORDER BY id DESC LIMIT 10",
+        conn
+    )
+
+    st.dataframe(data_log)
+
