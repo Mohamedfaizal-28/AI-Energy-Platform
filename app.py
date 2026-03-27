@@ -14,9 +14,11 @@ from firebase_admin import credentials, db
 # ---------------- FIREBASE INIT ----------------
 if not firebase_admin._apps:
 
+    import json
+
     firebase_secret = st.secrets["firebase"]
 
-    cred = credentials.Certificate(firebase_secret)
+    cred = credentials.Certificate(json.loads(firebase_secret))
 
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/'
