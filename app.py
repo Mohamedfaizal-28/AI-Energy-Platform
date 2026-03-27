@@ -6,19 +6,6 @@ import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
-import requests
-
-# YOUR FIREBASE URL (Note the trailing slash /)
-FIREBASE_URL = "https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/:"
-
-def update_physical_relays(r1, r2, r3):
-    """Sends 1 for ON, 0 for OFF to Firebase"""
-    # Convert Boolean (True/False) to Integer (1/0)
-    data = {"relay1": int(r1), "relay2": int(r2), "relay3": int(r3)}
-    try:
-        requests.put(f"{FIREBASE_URL}relays.json", json=data)
-    except Exception as e:
-        pass # Silently fail if no internet
 
 # ---------------- LOGIN SYSTEM ----------------
 
@@ -224,28 +211,16 @@ for relay, status in relay_status.items():
 
 # ---------------- MANUAL RELAY CONTROL ----------------
 
-# ---------------- MANUAL RELAY CONTROL ----------------
-
 st.subheader("🕹 Manual Relay Control")
 
-# 1. Initialize session state for tracking changes if not already there
-if "last_firebase_state" not in st.session_state:
-    st.session_state.last_firebase_state = (None, None, None)
-
-# 2. Get the toggle values
 relay1 = st.toggle("Relay 1", value=relay_status["Relay1"])
 relay2 = st.toggle("Relay 2", value=relay_status["Relay2"])
 relay3 = st.toggle("Relay 3", value=relay_status["Relay3"])
 
-current_state = (relay1, relay2, relay3)
-
-# 3. ONLY update Firebase if the state is DIFFERENT from the last loop
-if current_state != st.session_state.last_firebase_state:
-    update_physical_relays(relay1, relay2, relay3)
-    st.session_state.last_firebase_state = current_state
-    st.toast("Firebase Updated!") # Small notification to confirm it worked
-
-
+st.write("Current Relay States:")
+st.write("Relay 1:", "ON" if relay1 else "OFF")
+st.write("Relay 2:", "ON" if relay2 else "OFF")
+st.write("Relay 3:", "ON" if relay3 else "OFF")
 
 # ---------------- ELECTRICITY BILL ----------------
 
