@@ -17,10 +17,22 @@ st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 # 🎨 SCADA STYLE
 st.markdown("""
 <style>
-body {background-color:#0e1117;color:white;}
-.stMetric {background:#1c1f26;padding:15px;border-radius:10px;}
+    [data-testid="stMetricValue"] {
+        color: #00FF00 !important; /* Bright Green Numbers */
+        font-weight: bold;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #FFFFFF !important; /* Pure White Labels */
+    }
+    .stMetric {
+        background:#1c1f26; 
+        padding:15px; 
+        border-radius:10px;
+        border: 1px solid #333;
+    }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ---------------- LOGIN SYSTEM ----------------
 def check_login(user, pwd):
