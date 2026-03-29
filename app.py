@@ -110,7 +110,7 @@ if sensor:
     voltage = float(sensor.get("voltage", 0))
     current = float(sensor.get("current", 0))
     temp = float(sensor.get("temperature", 0))
-    power = float(sensor.get("power", 0))
+    power = float(sensor.get("power", 0))  # W
 else:
     voltage, current, temp, power = 0, 0, 0, 0
 
@@ -194,25 +194,21 @@ elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
 
-    # USER INPUT
     new_r1 = st.toggle("Relay 1", r1)
     new_r2 = st.toggle("Relay 2", r2)
     new_r3 = st.toggle("Relay 3", r3)
 
-    # 🔥 AI CONTROL (BEFORE FIREBASE WRITE)
+    # 🔥 AI CONTROL
     if total_power >= threshold:
         st.warning("⚠ AI Optimizing Load")
 
         if 4.5 <= total_power <= 5.5:
             new_r3 = False
-
         elif 5.5 < total_power <= 6.0:
             new_r2 = False
-
         elif total_power > 6.0:
             new_r1 = False
 
-    # APPLY FINAL STATE
     ref.child("relay_control").set({
         "relay1": int(new_r1),
         "relay2": int(new_r2),
@@ -253,93 +249,4 @@ Monthly Energy: {monthly_energy}
 Cost: {today_cost}
 """
 
-    st.download_button("Download Report", report)    voltage = float(sensor.get("voltage", 0))
-    current = float(sensor.get("current", 0))
-    temp = float(sensor.get("temperature", 0))
-    power = float(sensor.get("power", 0))  # W
-else:
-    voltage, current, temp, power = 0, 0, 0, 0
-
-if relay:
-    r1 = bool(relay.get("relay1", 0))
-    r2 = bool(relay.get("relay2", 0))
-    r3 = bool(relay.get("relay3", 0))
-else:
-    r1 = r2 = r3 = False
-
-# ---------------- RELAY LOAD ----------------
-r1_load = 2.0 if r1 else 0
-r2_load = 1.5 if r2 else 0
-r3_load = 1.0 if r3 else 0
-
-relay_total = r1_load + r2_load + r3_load
-
-# ---------------- SLIDER (FIXED) ----------------
-relay_total = float(relay_total)
-relay_total = max(0.0, min(relay_total, 7.0))
-
-if "sim" not in st.session_state:
-    st.session_state.sim = relay_total
-
-sim = st.sidebar.slider(
-    "⚡ Total Load (kW)",
-    0.0,
-    7.0,
-    st.session_state.sim,
-    step=0.1
-)
-
-st.session_state.sim = sim
-
-# 🔥 AI POWER
-total_power = sim
-
-# ---------------- ENERGY ----------------
-interval = 3
-hour = now.hour
-
-power_kw = power / 1000
-energy_inc = power_kw * (interval / 3600)
-st.session_state.energy_log[hour] += energy_inc
-
-today_energy = sum(st.session_state.energy_log.values())
-today_cost = today_energy * 8
-
-monthly_energy = st.session_state.monthly_energy.get(month, 0)
-monthly_cost = monthly_energy * 8
-
-# ================= DASHBOARD =================
-if menu == "🏠 Dashboard":
-
-    st.title("⚡ AI Energy SCADA Dashboard")
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Voltage", f"{voltage} V")
-    col2.metric("Current", f"{current} A")
-    col3.metric("Temperature", f"{temp} °C")
-
-    st.metric("Live Power (W)", round(power, 2))
-
-    col4, col5 = st.columns(2)
-    col4.metric("Today Energy", round(today_energy, 3))
-    col5.metric("Today Cost ₹", round(today_cost, 2))
-
-    col6, col7 = st.columns(2)
-    col6.metric("Monthly Energy", round(monthly_energy, 3))
-    col7.metric("Monthly Cost ₹", round(monthly_cost, 2))
-
-    st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
-
-    if total_power >= threshold:
-        st.error("🔴 OVERLOAD")
-    else:
-        st.success("🟢 NORMAL")
-
-# ================= RELAY =================
-elif menu == "🔌 Relay Control":
-
-    st.header("Relay Control")
-
-    new_r1 = st.toggle("Relay 1", r1)
-    new_r2 = st.toggle("Relay 2", r2)
-    new_r3 = st.toggle("
+    st.download_button("Download Report", report)
