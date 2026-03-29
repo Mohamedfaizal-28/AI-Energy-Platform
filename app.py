@@ -110,7 +110,7 @@ if sensor:
     voltage = float(sensor.get("voltage", 0))
     current = float(sensor.get("current", 0))
     temp = float(sensor.get("temperature", 0))
-    power = float(sensor.get("power", 0))  # 🔥 in W
+    power = float(sensor.get("power", 0))  # W
 else:
     voltage, current, temp, power = 0, 0, 0, 0
 
@@ -121,32 +121,38 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# ---------------- RELAY LOAD VALUES ----------------
+# ---------------- RELAY LOAD ----------------
 r1_load = 2.0 if r1 else 0
 r2_load = 1.5 if r2 else 0
 r3_load = 1.0 if r3 else 0
 
 relay_total = r1_load + r2_load + r3_load
 
-# ---------------- SLIDER FIX ----------------
+# ---------------- SLIDER (FIXED) ----------------
 relay_total = float(relay_total)
-
-# Clamp value safely inside range
 relay_total = max(0.0, min(relay_total, 7.0))
+
+if "sim" not in st.session_state:
+    st.session_state.sim = relay_total
 
 sim = st.sidebar.slider(
     "⚡ Total Load (kW)",
-    min_value=0.0,
-    max_value=7.0,
-    value=relay_total,
+    0.0,
+    7.0,
+    st.session_state.sim,
     step=0.1
 )
+
+st.session_state.sim = sim
+
+# 🔥 AI POWER
+total_power = sim
 
 # ---------------- ENERGY ----------------
 interval = 3
 hour = now.hour
 
-power_kw = power / 1000  # 🔥 convert W → kW
+power_kw = power / 1000
 energy_inc = power_kw * (interval / 3600)
 st.session_state.energy_log[hour] += energy_inc
 
@@ -166,7 +172,6 @@ if menu == "🏠 Dashboard":
     col2.metric("Current", f"{current} A")
     col3.metric("Temperature", f"{temp} °C")
 
-    # 🔥 SHOW REAL POWER IN W
     st.metric("Live Power (W)", round(power, 2))
 
     col4, col5 = st.columns(2)
@@ -179,8 +184,7 @@ if menu == "🏠 Dashboard":
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
-    # 🔥 OVERLOAD BASED ON AI
-    if total_power > threshold:
+    if total_power >= threshold:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
@@ -192,52 +196,4 @@ elif menu == "🔌 Relay Control":
 
     new_r1 = st.toggle("Relay 1", r1)
     new_r2 = st.toggle("Relay 2", r2)
-    new_r3 = st.toggle("Relay 3", r3)
-
-    ref.child("relay_control").set({
-        "relay1": int(new_r1),
-        "relay2": int(new_r2),
-        "relay3": int(new_r3)
-    })
-
-    # 🔥 AI LOAD SHEDDING (FIXED RANGE)
-    if total_power > threshold:
-        st.warning("⚠ AI Optimizing Load")
-
-        if 4.5 < total_power <= 5.5:
-            ref.child("relay_control/relay3").set(0)
-
-        elif 5.5 < total_power <= 6.0:
-            ref.child("relay_control/relay2").set(0)
-
-        elif 6.0 < total_power <= 6.5:
-            ref.child("relay_control/relay1").set(0)
-
-# ================= ANALYTICS =================
-elif menu == "📊 Analytics":
-
-    st.header("Hourly Energy")
-
-    df = pd.DataFrame({
-        "Hour": list(st.session_state.energy_log.keys()),
-        "Energy": list(st.session_state.energy_log.values())
-    })
-
-    st.bar_chart(df.set_index("Hour"))
-
-# ================= REPORT =================
-elif menu == "📄 Reports":
-
-    st.header("Reports")
-
-    st.write("Daily Energy:", st.session_state.daily_energy)
-    st.write("Monthly Energy:", st.session_state.monthly_energy)
-
-    report = f"""
-Date: {today}
-Today Energy: {today_energy}
-Monthly Energy: {monthly_energy}
-Cost: {today_cost}
-"""
-
-    st.download_button("Download Report", report)
+    new_r3 = st.toggle("
