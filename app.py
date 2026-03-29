@@ -14,11 +14,33 @@ st_autorefresh(interval=3000, key="refresh")
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 
-# 🎨 SCADA STYLE
+# 🎨 SCADA STYLE (FIXED GREEN TEXT)
 st.markdown("""
 <style>
-body {background-color:#0e1117;color:white;}
-.stMetric {background:#1c1f26;padding:15px;border-radius:10px;}
+body {
+    background-color:#0e1117;
+    color:white;
+}
+
+/* Metric card */
+.stMetric {
+    background:#1c1f26;
+    padding:15px;
+    border-radius:10px;
+}
+
+/* Metric LABEL */
+.stMetric label {
+    color:#00ff88 !important;
+    font-weight:600;
+}
+
+/* Metric VALUE */
+.stMetric div {
+    color:#00ff88 !important;
+    font-size:22px !important;
+    font-weight:bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,9 +144,21 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# 🔥 DEMO SLIDER
-sim = st.sidebar.slider("⚡ Simulated Load", 0.0, 7.0, 0.0)
-total_power = power + sim
+# 🔥 AUTO LOAD (REPLACES SLIDER)
+relay_load = 0
+
+if r1:
+    relay_load += 1.5
+if r2:
+    relay_load += 1.5
+if r3:
+    relay_load += 1.5
+
+total_power = power + relay_load
+
+# SHOW AUTO LOAD VISUAL
+st.sidebar.progress(min(total_power / 7, 1.0))
+st.sidebar.write(f"⚡ Auto Load: {round(total_power,2)} kW")
 
 # ---------------- ENERGY ----------------
 interval = 3
