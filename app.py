@@ -175,13 +175,13 @@ elif menu == "🔌 Relay Control":
     if sim >= 4.5:
         st.warning("⚠ AI Load Shedding Active")
         
-        if 4.5 <= sim < 5.5:
+        if 4.51 <= sim < 5.5:
             new_r3 = False  # Turn off Relay 3
-        elif 5.5 <= sim < 6.0:
+        elif 5.51 <= sim < 6.0:
             new_r2 = False  # Turn off Relay 2
-        elif 6.0 <= sim < 6.5:
+        elif 6.01 <= sim < 6.5:
             new_r1 = False  # Turn off Relay 1
-        elif 6.5 <= sim <= 7.0:
+        elif 6.51 <= sim <= 7.0:
             new_r1 = False  # Turn off Relay 1
             new_r3 = False  # Turn off Relay 3
 
