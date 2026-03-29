@@ -8,21 +8,21 @@ import pytz
 import firebase_admin
 from firebase_admin import credentials, db
 
-# AUTO REFRESH
+# AUTO REFRESH (Every 3 seconds)
 st_autorefresh(interval=3000, key="refresh")
 
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 
-# 🎨 SCADA STYLE - FORCING NEON GREEN
+# 🎨 SCADA STYLE - FORCED GREEN METRICS
 st.markdown("""
 <style>
     [data-testid="stMetricValue"] {
-        color: #00FF00 !important; /* Bright Neon Green Numbers */
+        color: #00FF00 !important; /* Neon Green */
         font-weight: bold;
     }
     [data-testid="stMetricLabel"] {
-        color: #FFFFFF !important; /* Pure White Labels */
+        color: #FFFFFF !important; /* White Labels */
     }
     .stMetric {
         background:#1c1f26; 
@@ -107,30 +107,51 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# ---------------- SIDEBAR ----------------
+# ---------------- GLOBAL CONTROL LOGIC ----------------
 st.sidebar.title("⚙ Control Panel")
 menu = st.sidebar.radio("Navigation", ["🏠 Dashboard", "🔌 Relay Control", "📊 Analytics", "📄 Reports"])
 
-# 🔥 AUTO-ADJUST SLIDER LOGIC
-# Relay weights: R1=2.0, R2=1.5, R3=1.0
+# 1. Calculate weighted load from relays
 calc_load = (int(r1) * 2.0) + (int(r2) * 1.5) + (int(r3) * 1.0)
 
-# Slider moves automatically based on Relay states
+# 2. Sidebar Slider (Auto-adjusts based on calc_load)
 sim = st.sidebar.slider("⚡ Simulated Load", 0.0, 7.0, float(calc_load))
 total_power = power + sim
 threshold = 4.5
+
+# 🔥 GLOBAL AI LOAD SHEDDING (Works on all pages)
+ai_active = False
+if total_power > threshold:
+    ai_active = True
+    
+    # Specific logic bands
+    if 4.5 < total_power <= 5.5:
+        r3 = False
+    elif 5.5 < total_power <= 6.0:
+        r2 = False
+    elif 6.0 < total_power <= 6.5:
+        r1 = False
+    elif 6.5 < total_power <= 7.0:
+        r1 = False
+        r3 = False
+
+    # Sync AI changes back to Firebase immediately
+    ref.child("relay_control").update({
+        "relay1": int(r1),
+        "relay2": int(r2),
+        "relay3": int(r3)
+    })
 
 st.sidebar.write(f"User: {st.session_state.role}")
 if st.sidebar.button("Logout"):
     st.session_state.login = False
     st.rerun()
 
-# ---------------- ENERGY CALCULATION ----------------
+# ---------------- ENERGY CALC ----------------
 interval = 3
 hour = now.hour
 energy_inc = total_power * (interval/3600)
 st.session_state.energy_log[hour] += energy_inc
-
 today_energy = sum(st.session_state.energy_log.values())
 today_cost = today_energy * 8
 monthly_energy = st.session_state.monthly_energy.get(month, 0)
@@ -157,54 +178,45 @@ if menu == "🏠 Dashboard":
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
+    # Overload Status (only triggers if over 4.5)
     if total_power > threshold:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
 
-# ================= RELAY CONTROL & AI LOGIC =================
+# ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
     st.header("Relay Control")
 
-    # Current Toggle States
+    if ai_active:
+        st.warning("⚠ AI Load Shedding Active - Some relays forced OFF")
+
+    # Display Toggles (Updating these will trigger a refresh and global AI logic)
     new_r1 = st.toggle("Relay 1 (2.0 kW)", r1)
     new_r2 = st.toggle("Relay 2 (1.5 kW)", r2)
     new_r3 = st.toggle("Relay 3 (1.0 kW)", r3)
 
-    # 🔥 AI LOAD SHEDDING LOGIC (Based on slider value 'sim')
-    if sim >= 4.5:
-        st.warning("⚠ AI Load Shedding Active")
-        
-        if 4.51 <= sim < 5.5:
-            new_r3 = False  # Turn off Relay 3
-        elif 5.51 <= sim < 6.0:
-            new_r2 = False  # Turn off Relay 2
-        elif 6.01 <= sim < 6.5:
-            new_r1 = False  # Turn off Relay 1
-        elif 6.51 <= sim <= 7.0:
-            new_r1 = False  # Turn off Relay 1
-            new_r3 = False  # Turn off Relay 3
+    if new_r1 != r1 or new_r2 != r2 or new_r3 != r3:
+        ref.child("relay_control").set({
+            "relay1": int(new_r1),
+            "relay2": int(new_r2),
+            "relay3": int(new_r3)
+        })
+        st.rerun()
 
-    # Update Firebase with the final states
-    ref.child("relay_control").set({
-        "relay1": int(new_r1),
-        "relay2": int(new_r2),
-        "relay3": int(new_r3)
-    })
+    if total_power > threshold:
+        st.error("🔴 OVERLOAD DETECTED")
+    else:
+        st.success("🟢 LOAD NORMAL")
 
-# ================= ANALYTICS =================
+# ================= ANALYTICS & REPORTS =================
 elif menu == "📊 Analytics":
     st.header("Hourly Energy")
-    df = pd.DataFrame({
-        "Hour": list(st.session_state.energy_log.keys()),
-        "Energy": list(st.session_state.energy_log.values())
-    })
+    df = pd.DataFrame({"Hour": list(st.session_state.energy_log.keys()), "Energy": list(st.session_state.energy_log.values())})
     st.bar_chart(df.set_index("Hour"))
 
-# ================= REPORT =================
 elif menu == "📄 Reports":
     st.header("Reports")
-    st.write("Daily Energy:", st.session_state.daily_energy)
-    st.write("Monthly Energy:", st.session_state.monthly_energy)
-    report = f"Date: {today}\nToday Energy: {today_energy}\nMonthly Energy: {monthly_energy}\nCost: {today_cost}"
+    st.write("Daily Energy Log:", st.session_state.daily_energy)
+    report = f"Date: {today}\nToday Energy: {today_energy}\nCost: {today_cost}"
     st.download_button("Download Report", report)
