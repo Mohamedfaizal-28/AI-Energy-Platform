@@ -142,22 +142,23 @@ monthly_cost = monthly_energy * 8
 # ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
 
-    st.title("⚡ AI Energy SCADA Dashboard")
+    st.title("⚡ AI Energy Dashboard")
 
+    # We use a dummy delta " " to force the styling to green without showing a number
     col1, col2, col3 = st.columns(3)
-    col1.metric("Voltage", f"{voltage} V")
-    col2.metric("Current", f"{current} A")
-    col3.metric("Temperature", f"{temp} °C")
+    col1.metric("Voltage", f"{voltage} V", delta="Normal", delta_color="normal")
+    col2.metric("Current", f"{current} A", delta="Live", delta_color="normal")
+    col3.metric("Temperature", f"{temp} °C", delta="Stable", delta_color="normal")
 
-    st.metric("Live Power (kW)", round(total_power,2))
+    st.metric("Live Power (kW)", round(total_power,2), delta="Active", delta_color="normal")
 
     col4, col5 = st.columns(2)
-    col4.metric("Today Energy", round(today_energy,3))
-    col5.metric("Today Cost ₹", round(today_cost,2))
+    col4.metric("Today Energy", round(today_energy,3), delta="⚡", delta_color="normal")
+    col5.metric("Today Cost ₹", round(today_cost,2), delta="₹", delta_color="normal")
 
     col6, col7 = st.columns(2)
-    col6.metric("Monthly Energy", round(monthly_energy,3))
-    col7.metric("Monthly Cost ₹", round(monthly_cost,2))
+    col6.metric("Monthly Energy", round(monthly_energy,3), delta="OK", delta_color="normal")
+    col7.metric("Monthly Cost ₹", round(monthly_cost,2), delta="OK", delta_color="normal")
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
@@ -165,6 +166,7 @@ if menu == "🏠 Dashboard":
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
+
 
 # ================= RELAY =================
 elif menu == "🔌 Relay Control":
