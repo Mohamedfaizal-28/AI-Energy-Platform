@@ -94,21 +94,22 @@ ai_total = sim
 
 threshold = 4.5
 
-# ================= AI LOGIC (FIXED) =================
+# ================= AI LOGIC (FIXED FINAL) =================
 new_r1, new_r2, new_r3 = r1, r2, r3
 ai_active = False
 
-if ai_total > threshold:
+if sim > 4.5:
     ai_active = True
 
-    if 4.51 <= ai_total <= 5.5:
+    if 4.51 <= sim <= 5.5:
         new_r3 = False
-    elif 5.51 <= ai_total <= 6:
+    elif 5.51 <= sim <= 6:
         new_r2 = False
-    elif 6.01 <= ai_total <= 6.5:
+    elif 6.01 <= sim <= 6.5:
         new_r1 = False
 
-    # 🔥 update once
+# 🔥 IMPORTANT: update ONLY if changed
+if (new_r1 != r1) or (new_r2 != r2) or (new_r3 != r3):
     ref.child("relay_control").update({
         "relay1": int(new_r1),
         "relay2": int(new_r2),
@@ -131,7 +132,7 @@ if menu == "🏠 Dashboard":
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
     # 🔥 OVERLOAD FIXED
-    if ai_total > threshold:
+    if sim > 4.5:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
