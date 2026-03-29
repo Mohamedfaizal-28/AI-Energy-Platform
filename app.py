@@ -22,7 +22,7 @@ body {background-color:#0e1117;color:white;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN SYSTEM ----------------
+# ---------------- LOGIN ----------------
 def check_login(user, pwd):
     return (user == "Admin" and pwd == "1234") or (user == "User" and pwd == "1234")
 
@@ -51,7 +51,7 @@ now = datetime.now(india)
 today = now.strftime("%Y-%m-%d")
 month = now.strftime("%Y-%m")
 
-# ---------------- FIREBASE INIT ----------------
+# ---------------- FIREBASE ----------------
 if not firebase_admin._apps:
     firebase_secret = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_secret)
@@ -79,7 +79,6 @@ if st.session_state.date != today:
     yesterday_energy = sum(st.session_state.energy_log.values())
 
     st.session_state.daily_energy[st.session_state.date] = yesterday_energy
-
     st.session_state.monthly_energy[month] = st.session_state.monthly_energy.get(month, 0) + yesterday_energy
 
     st.session_state.energy_log = {i: 0 for i in range(24)}
@@ -101,9 +100,9 @@ if st.sidebar.button("Logout"):
     st.session_state.login = False
     st.rerun()
 
-threshold = 4.5
+threshold = 4.5  # kW threshold
 
-# ---------------- FIREBASE ----------------
+# ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
 relay = ref.child("relay_control").get()
 
@@ -111,9 +110,9 @@ if sensor:
     voltage = float(sensor.get("voltage", 0))
     current = float(sensor.get("current", 0))
     temp = float(sensor.get("temperature", 0))
-    power = float(sensor.get("power", 0))
+    power_watt = float(sensor.get("power", 0))   # 🔥 in W
 else:
-    voltage, current, temp, power = 0, 0, 0, 0
+    voltage, current, temp, power_watt = 0, 0, 0, 0
 
 if relay:
     r1 = bool(relay.get("relay1", 0))
@@ -122,15 +121,27 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# 🔥 DEMO SLIDER
-sim = st.sidebar.slider("⚡ Simulated Load", 0.0, 7.0, 0.0)
-total_power = power + sim
+# ---------------- RELAY LOAD VALUES (kW) ----------------
+relay1_load = 1.5 if r1 else 0
+relay2_load = 1.0 if r2 else 0
+relay3_load = 0.8 if r3 else 0
+
+relay_total_load = relay1_load + relay2_load + relay3_load
+
+# ---------------- SLIDER ----------------
+sim = st.sidebar.slider("⚡ Simulated Load (kW)", 0.0, 7.0, 0.0)
+
+# 🔥 AI LOGIC POWER (ONLY slider + relay)
+ai_power = sim + relay_total_load
 
 # ---------------- ENERGY ----------------
 interval = 3
 hour = now.hour
 
-energy_inc = total_power * (interval/3600)
+# convert W → kW
+power_kw = power_watt / 1000  
+
+energy_inc = power_kw * (interval / 3600)
 st.session_state.energy_log[hour] += energy_inc
 
 today_energy = sum(st.session_state.energy_log.values())
@@ -149,19 +160,21 @@ if menu == "🏠 Dashboard":
     col2.metric("Current", f"{current} A")
     col3.metric("Temperature", f"{temp} °C")
 
-    st.metric("Live Power (kW)", round(total_power,2))
+    # 🔥 SHOW IN WATTS
+    st.metric("Live Power (W)", round(power_watt, 2))
 
     col4, col5 = st.columns(2)
-    col4.metric("Today Energy", round(today_energy,3))
-    col5.metric("Today Cost ₹", round(today_cost,2))
+    col4.metric("Today Energy (kWh)", round(today_energy, 3))
+    col5.metric("Today Cost ₹", round(today_cost, 2))
 
     col6, col7 = st.columns(2)
-    col6.metric("Monthly Energy", round(monthly_energy,3))
-    col7.metric("Monthly Cost ₹", round(monthly_cost,2))
+    col6.metric("Monthly Energy (kWh)", round(monthly_energy, 3))
+    col7.metric("Monthly Cost ₹", round(monthly_cost, 2))
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
-    if total_power > threshold:
+    # 🔥 OVERLOAD BASED ON AI ONLY
+    if ai_power > threshold:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
@@ -181,13 +194,13 @@ elif menu == "🔌 Relay Control":
         "relay3": int(new_r3)
     })
 
-    # AI LOAD SHEDDING
-    if total_power > threshold:
+    # 🔥 AI LOAD SHEDDING BASED ON AI POWER
+    if ai_power > threshold:
         st.warning("⚠ AI Optimizing Load")
 
-        if total_power <= 5.5:
+        if ai_power <= 5.5:
             ref.child("relay_control/relay3").set(0)
-        elif total_power <= 6:
+        elif ai_power <= 6:
             ref.child("relay_control/relay2").set(0)
         else:
             ref.child("relay_control/relay1").set(0)
