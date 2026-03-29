@@ -3,28 +3,28 @@ import pandas as pd
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
+# 🔥 FIREBASE
+import firebase_admin
+from firebase_admin import credentials, db
+
 # AUTO REFRESH
-st_autorefresh(interval=5000, key="refresh")
+st_autorefresh(interval=3000, key="refresh")
 
 st.set_page_config(page_title="AI Energy System", layout="wide")
 
-# ---------------- SESSION STORAGE ----------------
+# ---------------- FIREBASE INIT ----------------
+if not firebase_admin._apps:
+    firebase_secret = dict(st.secrets["firebase"])
+    cred = credentials.Certificate(firebase_secret)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://ai-energy-system-c6b9c-default-rtdb.firebaseio.com/'
+    })
+
+ref = db.reference('/')
+
+# ---------------- SESSION ----------------
 if "energy_log" not in st.session_state:
     st.session_state.energy_log = {i: 0 for i in range(24)}
-
-if "relay_time" not in st.session_state:
-    st.session_state.relay_time = {
-        "relay1": 0,
-        "relay2": 0,
-        "relay3": 0
-    }
-
-if "relay_state" not in st.session_state:
-    st.session_state.relay_state = {
-        "relay1": True,
-        "relay2": True,
-        "relay3": True
-    }
 
 # ---------------- SIDEBAR ----------------
 threshold = 4.5
@@ -37,36 +37,37 @@ menu = st.sidebar.radio("Navigation", [
     "📄 Reports"
 ])
 
-# ---------------- SENSOR DATA ----------------
-voltage = 230
-current = 0.5
-temp = 32
+# ---------------- READ FIREBASE ----------------
+sensor = ref.child("sensor_data").get()
+relay_fb = ref.child("relay_control").get()
 
-# ---------------- RELAY LOAD ----------------
-relay_loads = {
-    "relay1": 2.0,
-    "relay2": 1.5,
-    "relay3": 1.0
-}
+if sensor:
+    voltage = float(sensor.get("voltage", 0))
+    current = float(sensor.get("current", 0))
+    temp = float(sensor.get("temperature", 0))
+    power = float(sensor.get("power", 0))
+else:
+    voltage, current, temp, power = 0, 0, 0, 0
 
-# ---------------- LOAD ----------------
-active_load = sum(load for r, load in relay_loads.items() if st.session_state.relay_state[r])
+if relay_fb:
+    relay1 = bool(relay_fb.get("relay1", 0))
+    relay2 = bool(relay_fb.get("relay2", 0))
+    relay3 = bool(relay_fb.get("relay3", 0))
+else:
+    relay1 = relay2 = relay3 = False
 
 # ---------------- TIME ----------------
 now = datetime.now()
 current_hour = now.hour
 
-# ---------------- ENERGY UPDATE ----------------
-interval_sec = 5
-
-energy_increment = active_load * (interval_sec / 3600)
+# ---------------- ENERGY ----------------
+interval_sec = 3
+energy_increment = power * (interval_sec / 3600)
 
 st.session_state.energy_log[current_hour] += energy_increment
 
-# ---------------- RELAY TIME TRACK ----------------
-for r in st.session_state.relay_state:
-    if st.session_state.relay_state[r]:
-        st.session_state.relay_time[r] += interval_sec
+total_energy = sum(st.session_state.energy_log.values())
+cost = total_energy * 8
 
 # ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
@@ -78,16 +79,13 @@ if menu == "🏠 Dashboard":
     col2.metric("Current", f"{current} A")
     col3.metric("Temperature", f"{temp} °C")
 
-    st.metric("Active Load (kW)", round(active_load,2))
-
-    total_energy = sum(st.session_state.energy_log.values())
-    cost = total_energy * 8
+    st.metric("Power (kW)", power)
 
     col4, col5 = st.columns(2)
     col4.metric("Total Energy (kWh)", round(total_energy,3))
-    col5.metric("Electricity Cost (₹)", round(cost,2))
+    col5.metric("Cost (₹)", round(cost,2))
 
-    if active_load > threshold:
+    if power > threshold:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
@@ -95,30 +93,20 @@ if menu == "🏠 Dashboard":
 # ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
 
-    st.header("Smart Relay Control")
+    st.header("Relay Control (Firebase Connected)")
 
-    st.session_state.relay_state["relay1"] = st.toggle("Relay 1 (2kW)", st.session_state.relay_state["relay1"])
-    st.session_state.relay_state["relay2"] = st.toggle("Relay 2 (1.5kW)", st.session_state.relay_state["relay2"])
-    st.session_state.relay_state["relay3"] = st.toggle("Relay 3 (1kW)", st.session_state.relay_state["relay3"])
+    new_r1 = st.toggle("Relay 1", value=relay1)
+    new_r2 = st.toggle("Relay 2", value=relay2)
+    new_r3 = st.toggle("Relay 3", value=relay3)
 
-    active_load = sum(load for r, load in relay_loads.items() if st.session_state.relay_state[r])
-    st.metric("Current Load (kW)", active_load)
+    # WRITE TO FIREBASE
+    ref.child("relay_control").set({
+        "relay1": int(new_r1),
+        "relay2": int(new_r2),
+        "relay3": int(new_r3)
+    })
 
-    # AI optimization
-    if active_load > threshold:
-
-        st.error("⚠ Overload Predicted")
-
-        overload = active_load - threshold
-
-        if overload <= 1:
-            st.session_state.relay_state["relay3"] = False
-        elif overload <= 2:
-            st.session_state.relay_state["relay2"] = False
-        else:
-            st.session_state.relay_state["relay1"] = False
-
-        st.warning("AI optimized load")
+    st.success("Relay state synced to Firebase")
 
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
@@ -127,7 +115,7 @@ elif menu == "📊 Analytics":
 
     df = pd.DataFrame({
         "Hour": list(st.session_state.energy_log.keys()),
-        "Energy (kWh)": list(st.session_state.energy_log.values())
+        "Energy": list(st.session_state.energy_log.values())
     })
 
     st.bar_chart(df.set_index("Hour"))
@@ -139,47 +127,35 @@ elif menu == "📄 Reports":
 
     st.header("Energy Report")
 
-    total_energy = sum(st.session_state.energy_log.values())
-    cost = total_energy * 8
-
-    st.subheader("System Summary")
-
     st.write(f"Voltage: {voltage} V")
     st.write(f"Current: {current} A")
     st.write(f"Temperature: {temp} °C")
+    st.write(f"Power: {power} kW")
 
-    st.subheader("Relay Status")
-
-    for r, state in st.session_state.relay_state.items():
-        st.write(f"{r}: {'ON' if state else 'OFF'}")
-
-    st.subheader("Relay Usage Time (seconds)")
-
-    for r, t in st.session_state.relay_time.items():
-        st.write(f"{r}: {t} sec")
+    st.subheader("Relay State")
+    st.write({
+        "Relay1": relay1,
+        "Relay2": relay2,
+        "Relay3": relay3
+    })
 
     st.subheader("Hourly Energy")
-
     st.write(st.session_state.energy_log)
 
     st.subheader("Total")
-
-    st.write(f"Energy Used: {round(total_energy,3)} kWh")
+    st.write(f"Energy: {round(total_energy,3)} kWh")
     st.write(f"Cost: ₹ {round(cost,2)}")
 
-    # DOWNLOAD REPORT
     report = f"""
 ENERGY REPORT
 -------------
 Voltage: {voltage}
 Current: {current}
 Temperature: {temp}
+Power: {power}
 
-Relay States:
-{st.session_state.relay_state}
-
-Relay Usage Time (sec):
-{st.session_state.relay_time}
+Relay State:
+{relay_fb}
 
 Hourly Energy:
 {st.session_state.energy_log}
