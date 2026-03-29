@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import pytz
 
 # 🔥 FIREBASE
 import firebase_admin
@@ -10,7 +11,13 @@ from firebase_admin import credentials, db
 # AUTO REFRESH
 st_autorefresh(interval=3000, key="refresh")
 
-st.set_page_config(page_title="AI Energy System", layout="wide")
+st.set_page_config(page_title="AI Energy SCADA", layout="wide")
+
+# ---------------- TIME FIX (INDIA TIME) ----------------
+india = pytz.timezone('Asia/Kolkata')
+now = datetime.now(india)
+current_hour = now.hour
+today = now.strftime("%Y-%m-%d")
 
 # ---------------- FIREBASE INIT ----------------
 if not firebase_admin._apps:
@@ -23,8 +30,20 @@ if not firebase_admin._apps:
 ref = db.reference('/')
 
 # ---------------- SESSION ----------------
+if "date" not in st.session_state:
+    st.session_state.date = today
+
 if "energy_log" not in st.session_state:
     st.session_state.energy_log = {i: 0 for i in range(24)}
+
+if "history" not in st.session_state:
+    st.session_state.history = {}
+
+# 🔁 RESET DAILY
+if st.session_state.date != today:
+    st.session_state.history[st.session_state.date] = st.session_state.energy_log
+    st.session_state.energy_log = {i: 0 for i in range(24)}
+    st.session_state.date = today
 
 # ---------------- SIDEBAR ----------------
 threshold = 4.5
@@ -37,7 +56,7 @@ menu = st.sidebar.radio("Navigation", [
     "📄 Reports"
 ])
 
-# ---------------- READ FIREBASE ----------------
+# ---------------- FIREBASE READ ----------------
 sensor = ref.child("sensor_data").get()
 relay_fb = ref.child("relay_control").get()
 
@@ -56,13 +75,14 @@ if relay_fb:
 else:
     relay1 = relay2 = relay3 = False
 
-# ---------------- TIME ----------------
-now = datetime.now()
-current_hour = now.hour
+# ---------------- DEMO OVERLOAD SLIDER ----------------
+simulation = st.sidebar.slider("⚡ Simulate Load (Demo)", 0.0, 7.0, 0.0)
+
+total_power = power + simulation
 
 # ---------------- ENERGY ----------------
-interval_sec = 3
-energy_increment = power * (interval_sec / 3600)
+interval = 3
+energy_increment = total_power * (interval / 3600)
 
 st.session_state.energy_log[current_hour] += energy_increment
 
@@ -72,46 +92,57 @@ cost = total_energy * 8
 # ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
 
-    st.title("⚡ Smart Energy Dashboard")
+    st.title("⚡ AI Energy SCADA Dashboard")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Voltage", f"{voltage} V")
     col2.metric("Current", f"{current} A")
     col3.metric("Temperature", f"{temp} °C")
 
-    st.metric("Power (kW)", power)
+    st.metric("Live Power (kW)", round(total_power,2))
 
     col4, col5 = st.columns(2)
-    col4.metric("Total Energy (kWh)", round(total_energy,3))
-    col5.metric("Cost (₹)", round(cost,2))
+    col4.metric("Energy Today (kWh)", round(total_energy,3))
+    col5.metric("Cost Today (₹)", round(cost,2))
 
-    if power > threshold:
-        st.error("🔴 OVERLOAD")
+    st.info(f"🕒 Current Time: {now.strftime('%H:%M:%S')}")
+
+    # AI ALERT
+    if total_power > threshold:
+        st.error("🔴 OVERLOAD PREDICTED")
     else:
-        st.success("🟢 NORMAL")
+        st.success("🟢 SYSTEM NORMAL")
 
 # ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
 
-    st.header("Relay Control (Firebase Connected)")
+    st.header("Smart Relay Control")
 
     new_r1 = st.toggle("Relay 1", value=relay1)
     new_r2 = st.toggle("Relay 2", value=relay2)
     new_r3 = st.toggle("Relay 3", value=relay3)
 
-    # WRITE TO FIREBASE
     ref.child("relay_control").set({
         "relay1": int(new_r1),
         "relay2": int(new_r2),
         "relay3": int(new_r3)
     })
 
-    st.success("Relay state synced to Firebase")
+    # AI LOAD SHEDDING
+    if total_power > threshold:
+        st.warning("⚠ AI is optimizing load...")
+
+        if total_power <= 5.5:
+            ref.child("relay_control/relay3").set(0)
+        elif total_power <= 6:
+            ref.child("relay_control/relay2").set(0)
+        else:
+            ref.child("relay_control/relay1").set(0)
 
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
 
-    st.header("Hourly Energy Consumption")
+    st.header("Today's Energy Usage")
 
     df = pd.DataFrame({
         "Hour": list(st.session_state.energy_log.keys()),
@@ -120,48 +151,21 @@ elif menu == "📊 Analytics":
 
     st.bar_chart(df.set_index("Hour"))
 
-    st.info(f"Current Time: {now.strftime('%H:%M:%S')}")
-
 # ================= REPORT =================
 elif menu == "📄 Reports":
 
     st.header("Energy Report")
 
-    st.write(f"Voltage: {voltage} V")
-    st.write(f"Current: {current} A")
-    st.write(f"Temperature: {temp} °C")
-    st.write(f"Power: {power} kW")
-
-    st.subheader("Relay State")
-    st.write({
-        "Relay1": relay1,
-        "Relay2": relay2,
-        "Relay3": relay3
-    })
-
-    st.subheader("Hourly Energy")
+    st.subheader("Today")
     st.write(st.session_state.energy_log)
 
-    st.subheader("Total")
-    st.write(f"Energy: {round(total_energy,3)} kWh")
-    st.write(f"Cost: ₹ {round(cost,2)}")
+    st.subheader("History")
+    st.write(st.session_state.history)
 
     report = f"""
-ENERGY REPORT
--------------
-Voltage: {voltage}
-Current: {current}
-Temperature: {temp}
-Power: {power}
-
-Relay State:
-{relay_fb}
-
-Hourly Energy:
-{st.session_state.energy_log}
-
-Total Energy: {round(total_energy,3)} kWh
-Cost: ₹{round(cost,2)}
+Date: {today}
+Energy: {total_energy} kWh
+Cost: ₹{cost}
 """
 
     st.download_button("Download Report", report)
