@@ -14,26 +14,11 @@ st_autorefresh(interval=3000, key="refresh")
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 
-# 🎨 SCADA STYLE (UPDATED GREEN TEXT)
+# 🎨 SCADA STYLE
 st.markdown("""
 <style>
 body {background-color:#0e1117;color:white;}
-
-.stMetric {
-    background:#1c1f26;
-    padding:15px;
-    border-radius:10px;
-}
-
-/* 🔥 MAKE METRIC TEXT GREEN */
-.stMetric label {
-    color: #00ff88 !important;
-}
-.stMetric div {
-    color: #00ff88 !important;
-    font-weight: bold;
-    font-size: 22px;
-}
+.stMetric {background:#1c1f26;padding:15px;border-radius:10px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -94,6 +79,7 @@ if st.session_state.date != today:
     yesterday_energy = sum(st.session_state.energy_log.values())
 
     st.session_state.daily_energy[st.session_state.date] = yesterday_energy
+
     st.session_state.monthly_energy[month] = st.session_state.monthly_energy.get(month, 0) + yesterday_energy
 
     st.session_state.energy_log = {i: 0 for i in range(24)}
@@ -136,14 +122,9 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# 🔥 RELAY LOAD CALCULATION (UPDATED)
-relay_load = (2 if r1 else 0) + (1.5 if r2 else 0) + (1 if r3 else 0)
-
-# 🔥 SLIDER = ONLY OVERLOAD (AUTO BASED ON RELAY)
-sim = st.sidebar.slider("⚡ Overload Simulation", 0.0, 5.0, 0.0)
-
-# TOTAL POWER = RELAY LOAD + OVERLOAD
-total_power = relay_load + sim
+# 🔥 DEMO SLIDER
+sim = st.sidebar.slider("⚡ Simulated Load", 0.0, 7.0, 0.0)
+total_power = power + sim
 
 # ---------------- ENERGY ----------------
 interval = 3
@@ -190,9 +171,9 @@ elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
 
-    new_r1 = st.toggle("Relay 1 (2 kW)", r1)
-    new_r2 = st.toggle("Relay 2 (1.5 kW)", r2)
-    new_r3 = st.toggle("Relay 3 (1 kW)", r3)
+    new_r1 = st.toggle("Relay 1", r1)
+    new_r2 = st.toggle("Relay 2", r2)
+    new_r3 = st.toggle("Relay 3", r3)
 
     ref.child("relay_control").set({
         "relay1": int(new_r1),
