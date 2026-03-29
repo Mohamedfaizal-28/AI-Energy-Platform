@@ -14,27 +14,13 @@ st_autorefresh(interval=3000, key="refresh")
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 
-# 🎨 STYLE (GREEN TEXT FIX)
+# 🎨 STYLE
 st.markdown("""
 <style>
-body {
-    background-color:#0e1117;
-    color:white;
-}
-.stMetric {
-    background:#1c1f26;
-    padding:15px;
-    border-radius:10px;
-}
-.stMetric label {
-    color:#00ff88 !important;
-    font-weight:600;
-}
-.stMetric div {
-    color:#00ff88 !important;
-    font-size:22px !important;
-    font-weight:bold;
-}
+body {background-color:#0e1117;color:white;}
+.stMetric {background:#1c1f26;padding:15px;border-radius:10px;}
+.stMetric label {color:#00ff88 !important;}
+.stMetric div {color:#00ff88 !important;font-size:22px !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -78,27 +64,8 @@ if not firebase_admin._apps:
 ref = db.reference('/')
 
 # ---------------- SESSION ----------------
-if "date" not in st.session_state:
-    st.session_state.date = today
-
-if "energy_log" not in st.session_state:
-    st.session_state.energy_log = {i: 0 for i in range(24)}
-
-if "daily_energy" not in st.session_state:
-    st.session_state.daily_energy = {}
-
-if "monthly_energy" not in st.session_state:
-    st.session_state.monthly_energy = {}
-
-# 🔁 DAILY RESET
-if st.session_state.date != today:
-    yesterday_energy = sum(st.session_state.energy_log.values())
-
-    st.session_state.daily_energy[st.session_state.date] = yesterday_energy
-    st.session_state.monthly_energy[month] = st.session_state.monthly_energy.get(month, 0) + yesterday_energy
-
-    st.session_state.energy_log = {i: 0 for i in range(24)}
-    st.session_state.date = today
+if "sim_load" not in st.session_state:
+    st.session_state.sim_load = 0.0
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.title("⚙ Control Panel")
@@ -118,7 +85,7 @@ if st.sidebar.button("Logout"):
 
 threshold = 4.5
 
-# ---------------- FIREBASE DATA ----------------
+# ---------------- DATA ----------------
 sensor = ref.child("sensor_data").get()
 relay = ref.child("relay_control").get()
 
@@ -137,10 +104,7 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# ---------------- SLIDER (FIXED) ----------------
-if "sim_load" not in st.session_state:
-    st.session_state.sim_load = 0.0
-
+# ---------------- SLIDER ----------------
 sim = st.sidebar.slider(
     "⚡ Simulated Load",
     0.0, 7.0,
@@ -149,20 +113,24 @@ sim = st.sidebar.slider(
 
 total_power = power + sim
 
-# ---------------- ENERGY ----------------
-interval = 3
-hour = now.hour
+# ---------------- 🔥 GLOBAL AI LOGIC (FIXED) ----------------
+if total_power > threshold:
 
-energy_inc = total_power * (interval/3600)
-st.session_state.energy_log[hour] += energy_inc
+    if total_power <= 5.5:
+        ref.child("relay_control/relay3").set(0)
+        r3 = False
+    elif total_power <= 6:
+        ref.child("relay_control/relay2").set(0)
+        r2 = False
+    else:
+        ref.child("relay_control/relay1").set(0)
+        r1 = False
 
-today_energy = sum(st.session_state.energy_log.values())
-today_cost = today_energy * 8
+    # 🔥 Update slider AFTER relay OFF (NO FIXED LOAD USED)
+    st.session_state.sim_load = max(0.0, threshold - power)
+    st.rerun()
 
-monthly_energy = st.session_state.monthly_energy.get(month, 0)
-monthly_cost = monthly_energy * 8
-
-# ================= DASHBOARD =================
+# ---------------- DASHBOARD ----------------
 if menu == "🏠 Dashboard":
 
     st.title("⚡ AI Energy SCADA Dashboard")
@@ -174,22 +142,12 @@ if menu == "🏠 Dashboard":
 
     st.metric("Live Power (kW)", round(total_power,2))
 
-    col4, col5 = st.columns(2)
-    col4.metric("Today Energy", round(today_energy,3))
-    col5.metric("Today Cost ₹", round(today_cost,2))
-
-    col6, col7 = st.columns(2)
-    col6.metric("Monthly Energy", round(monthly_energy,3))
-    col7.metric("Monthly Cost ₹", round(monthly_cost,2))
-
-    st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
-
     if total_power > threshold:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
 
-# ================= RELAY =================
+# ---------------- RELAY ----------------
 elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
@@ -198,63 +156,24 @@ elif menu == "🔌 Relay Control":
     new_r2 = st.toggle("Relay 2", r2)
     new_r3 = st.toggle("Relay 3", r3)
 
+    # SAVE
     ref.child("relay_control").set({
         "relay1": int(new_r1),
         "relay2": int(new_r2),
         "relay3": int(new_r3)
     })
 
-    # 🔥 AI LOAD SHEDDING (UNCHANGED LOGIC + SLIDER UPDATE)
-    if total_power > threshold:
-        st.warning("⚠ AI Optimizing Load")
+    # 🔥 UPDATE SLIDER WHEN USER MANUALLY CHANGES RELAY
+    st.session_state.sim_load = max(0.0, threshold - power)
 
-        if total_power <= 5.5:
-            ref.child("relay_control/relay3").set(0)
-            r3 = False
-        elif total_power <= 6:
-            ref.child("relay_control/relay2").set(0)
-            r2 = False
-        else:
-            ref.child("relay_control/relay1").set(0)
-            r1 = False
-
-        # 🔥 UPDATE SLIDER BASED ON REMAINING RELAYS
-        relay_load = 0
-        if r1:
-            relay_load += 1.5
-        if r2:
-            relay_load += 1.5
-        if r3:
-            relay_load += 1.5
-
-        st.session_state.sim_load = relay_load
-        st.rerun()
-
-# ================= ANALYTICS =================
+# ---------------- ANALYTICS ----------------
 elif menu == "📊 Analytics":
 
-    st.header("Hourly Energy")
+    st.header("Analytics")
+    st.write("Coming Soon...")
 
-    df = pd.DataFrame({
-        "Hour": list(st.session_state.energy_log.keys()),
-        "Energy": list(st.session_state.energy_log.values())
-    })
-
-    st.bar_chart(df.set_index("Hour"))
-
-# ================= REPORT =================
+# ---------------- REPORT ----------------
 elif menu == "📄 Reports":
 
     st.header("Reports")
-
-    st.write("Daily Energy:", st.session_state.daily_energy)
-    st.write("Monthly Energy:", st.session_state.monthly_energy)
-
-    report = f"""
-Date: {today}
-Today Energy: {today_energy}
-Monthly Energy: {monthly_energy}
-Cost: {today_cost}
-"""
-
-    st.download_button("Download Report", report)
+    st.write("Coming Soon...")
