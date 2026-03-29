@@ -128,11 +128,19 @@ r3_load = 1.0 if r3 else 0
 
 relay_total = r1_load + r2_load + r3_load
 
-# ---------------- SLIDER ----------------
-sim = st.sidebar.slider("⚡ Total Load (kW)", 0.0, 7.0, relay_total)
+# ---------------- SLIDER FIX ----------------
+relay_total = float(relay_total)
 
-# 🔥 AI POWER (ONLY slider)
-total_power = sim
+# Clamp value safely inside range
+relay_total = max(0.0, min(relay_total, 7.0))
+
+sim = st.sidebar.slider(
+    "⚡ Total Load (kW)",
+    min_value=0.0,
+    max_value=7.0,
+    value=relay_total,
+    step=0.1
+)
 
 # ---------------- ENERGY ----------------
 interval = 3
