@@ -10,7 +10,7 @@ from firebase_admin import credentials, db
 # AUTO REFRESH
 st_autorefresh(interval=2000, key="refresh")
 
-# PAGE
+# PAGE CONFIG
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 
 # ---------------- LOGIN ----------------
@@ -50,7 +50,7 @@ ref = db.reference('/')
 india = pytz.timezone('Asia/Kolkata')
 now = datetime.now(india)
 
-# 🎨 SCADA UI
+# ---------------- UI STYLE ----------------
 st.markdown("""
 <style>
 body {background-color:#0b0f1a;color:#e6edf3;}
@@ -98,20 +98,24 @@ if relay_fb:
 else:
     r1 = r2 = r3 = False
 
-# ---------------- SLIDER (AI DEMO) ----------------
+# ---------------- SLIDER (FIXED) ----------------
 if "slider" not in st.session_state:
-    st.session_state.slider = 0.0
+    st.session_state["slider"] = 0.0
 
-sim = st.sidebar.slider("⚡ Simulated Load", 0.0, 7.5, st.session_state.slider)
+sim = st.sidebar.slider("⚡ Simulated Load", 0.0, 7.5, key="slider")
 
 total_power = power + sim
 
 # ---------------- RELAY LOAD VALUES ----------------
-relay_load = {"r1":2.0, "r2":1.5, "r3":1.0}
+relay_load = {
+    "r1": 2.0,
+    "r2": 1.5,
+    "r3": 1.0
+}
 
 cut_load = 0
 
-# ================= AI LOGIC =================
+# ================= AI LOAD SHEDDING =================
 if total_power > 4.5:
 
     if 4.51 <= total_power <= 5.5:
@@ -131,11 +135,14 @@ if total_power > 4.5:
         r3 = False
         cut_load = relay_load["r1"] + relay_load["r3"]
 
-# 🔥 UPDATE SLIDER
+# FINAL POWER AFTER AI
 final_power = max(0, total_power - cut_load)
-st.session_state.slider = final_power
 
-# ---------------- WRITE RELAY TO FIREBASE ----------------
+# SAFE UPDATE (NO CRASH)
+if abs(st.session_state["slider"] - final_power) > 0.01:
+    st.session_state["slider"] = final_power
+
+# ---------------- WRITE TO FIREBASE ----------------
 ref.child("relay_control").set({
     "relay1": int(r1),
     "relay2": int(r2),
@@ -155,7 +162,6 @@ if menu == "🏠 Dashboard":
 
     st.markdown(f"<div class='card'>Live Power<br><b>{round(final_power,2)} kW</b></div>", unsafe_allow_html=True)
 
-    # STATUS
     if final_power > 4.5:
         st.markdown("<div class='card blink' style='color:red'>🔴 OVERLOAD</div>", unsafe_allow_html=True)
     else:
