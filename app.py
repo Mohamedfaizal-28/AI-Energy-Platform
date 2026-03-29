@@ -14,28 +14,22 @@ st_autorefresh(interval=3000, key="refresh")
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 
-# 🎨 SCADA STYLE (FIXED GREEN TEXT)
+# 🎨 STYLE (GREEN TEXT FIX)
 st.markdown("""
 <style>
 body {
     background-color:#0e1117;
     color:white;
 }
-
-/* Metric card */
 .stMetric {
     background:#1c1f26;
     padding:15px;
     border-radius:10px;
 }
-
-/* Metric LABEL */
 .stMetric label {
     color:#00ff88 !important;
     font-weight:600;
 }
-
-/* Metric VALUE */
 .stMetric div {
     color:#00ff88 !important;
     font-size:22px !important;
@@ -44,7 +38,7 @@ body {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN SYSTEM ----------------
+# ---------------- LOGIN ----------------
 def check_login(user, pwd):
     return (user == "Admin" and pwd == "1234") or (user == "User" and pwd == "1234")
 
@@ -73,7 +67,7 @@ now = datetime.now(india)
 today = now.strftime("%Y-%m-%d")
 month = now.strftime("%Y-%m")
 
-# ---------------- FIREBASE INIT ----------------
+# ---------------- FIREBASE ----------------
 if not firebase_admin._apps:
     firebase_secret = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_secret)
@@ -101,7 +95,6 @@ if st.session_state.date != today:
     yesterday_energy = sum(st.session_state.energy_log.values())
 
     st.session_state.daily_energy[st.session_state.date] = yesterday_energy
-
     st.session_state.monthly_energy[month] = st.session_state.monthly_energy.get(month, 0) + yesterday_energy
 
     st.session_state.energy_log = {i: 0 for i in range(24)}
@@ -125,7 +118,7 @@ if st.sidebar.button("Logout"):
 
 threshold = 4.5
 
-# ---------------- FIREBASE ----------------
+# ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
 relay = ref.child("relay_control").get()
 
@@ -144,21 +137,17 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# 🔥 AUTO LOAD (REPLACES SLIDER)
-relay_load = 0
+# ---------------- SLIDER (FIXED) ----------------
+if "sim_load" not in st.session_state:
+    st.session_state.sim_load = 0.0
 
-if r1:
-    relay_load += 1.5
-if r2:
-    relay_load += 1.5
-if r3:
-    relay_load += 1.5
+sim = st.sidebar.slider(
+    "⚡ Simulated Load",
+    0.0, 7.0,
+    st.session_state.sim_load
+)
 
-total_power = power + relay_load
-
-# SHOW AUTO LOAD VISUAL
-st.sidebar.progress(min(total_power / 7, 1.0))
-st.sidebar.write(f"⚡ Auto Load: {round(total_power,2)} kW")
+total_power = power + sim
 
 # ---------------- ENERGY ----------------
 interval = 3
@@ -215,16 +204,31 @@ elif menu == "🔌 Relay Control":
         "relay3": int(new_r3)
     })
 
-    # AI LOAD SHEDDING
+    # 🔥 AI LOAD SHEDDING (UNCHANGED LOGIC + SLIDER UPDATE)
     if total_power > threshold:
         st.warning("⚠ AI Optimizing Load")
 
         if total_power <= 5.5:
             ref.child("relay_control/relay3").set(0)
+            r3 = False
         elif total_power <= 6:
             ref.child("relay_control/relay2").set(0)
+            r2 = False
         else:
             ref.child("relay_control/relay1").set(0)
+            r1 = False
+
+        # 🔥 UPDATE SLIDER BASED ON REMAINING RELAYS
+        relay_load = 0
+        if r1:
+            relay_load += 1.5
+        if r2:
+            relay_load += 1.5
+        if r3:
+            relay_load += 1.5
+
+        st.session_state.sim_load = relay_load
+        st.rerun()
 
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
