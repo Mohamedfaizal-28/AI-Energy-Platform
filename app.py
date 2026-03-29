@@ -77,8 +77,11 @@ if "monthly_energy" not in st.session_state:
 # 🔁 DAILY RESET
 if st.session_state.date != today:
     yesterday_energy = sum(st.session_state.energy_log.values())
+
     st.session_state.daily_energy[st.session_state.date] = yesterday_energy
+
     st.session_state.monthly_energy[month] = st.session_state.monthly_energy.get(month, 0) + yesterday_energy
+
     st.session_state.energy_log = {i: 0 for i in range(24)}
     st.session_state.date = today
 
@@ -100,7 +103,7 @@ if st.sidebar.button("Logout"):
 
 threshold = 4.5
 
-# ---------------- FIREBASE DATA ----------------
+# ---------------- FIREBASE ----------------
 sensor = ref.child("sensor_data").get()
 relay = ref.child("relay_control").get()
 
@@ -108,7 +111,7 @@ if sensor:
     voltage = float(sensor.get("voltage", 0))
     current = float(sensor.get("current", 0))
     temp = float(sensor.get("temperature", 0))
-    power = float(sensor.get("power", 0))  # REAL POWER (kW)
+    power = float(sensor.get("power", 0))
 else:
     voltage, current, temp, power = 0, 0, 0, 0
 
@@ -119,12 +122,9 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# 🔥 SLIDER (ONLY FOR TESTING OVERLOAD)
+# 🔥 DEMO SLIDER
 sim = st.sidebar.slider("⚡ Simulated Load", 0.0, 7.0, 0.0)
-
-# ✅ CORRECT LOGIC
-total_power = power              # REAL ONLY
-check_power = power + sim        # ONLY FOR OVERLOAD
+total_power = power + sim
 
 # ---------------- ENERGY ----------------
 interval = 3
@@ -149,21 +149,19 @@ if menu == "🏠 Dashboard":
     col2.metric("Current", f"{current} A")
     col3.metric("Temperature", f"{temp} °C")
 
-    # ✅ SHOW IN WATTS
-    st.metric("Live Power (W)", round(total_power * 1000, 2))
+    st.metric("Live Power (kW)", round(total_power,2))
 
     col4, col5 = st.columns(2)
-    col4.metric("Today Energy (kWh)", round(today_energy,3))
+    col4.metric("Today Energy", round(today_energy,3))
     col5.metric("Today Cost ₹", round(today_cost,2))
 
     col6, col7 = st.columns(2)
-    col6.metric("Monthly Energy (kWh)", round(monthly_energy,3))
+    col6.metric("Monthly Energy", round(monthly_energy,3))
     col7.metric("Monthly Cost ₹", round(monthly_cost,2))
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
-    # ✅ OVERLOAD CHECK USES check_power
-    if check_power > threshold:
+    if total_power > threshold:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
@@ -183,13 +181,13 @@ elif menu == "🔌 Relay Control":
         "relay3": int(new_r3)
     })
 
-    # ✅ AI LOAD SHEDDING BASED ON check_power
-    if check_power > threshold:
+    # AI LOAD SHEDDING
+    if total_power > threshold:
         st.warning("⚠ AI Optimizing Load")
 
-        if check_power <= 5.5:
+        if total_power <= 5.5:
             ref.child("relay_control/relay3").set(0)
-        elif check_power <= 6:
+        elif total_power <= 6:
             ref.child("relay_control/relay2").set(0)
         else:
             ref.child("relay_control/relay1").set(0)
