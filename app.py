@@ -147,14 +147,33 @@ if st.sidebar.button("Logout"):
     st.session_state.login = False
     st.rerun()
 
-# ---------------- ENERGY CALC ----------------
+# ---------------- ENERGY CALC (FIXED WITH FIREBASE) ----------------
 interval = 3
 hour = now.hour
-energy_inc = total_power * (interval/3600)
-st.session_state.energy_log[hour] += energy_inc
-today_energy = sum(st.session_state.energy_log.values())
+energy_inc = total_power * (interval / 3600)
+
+# 🔥 STORE HOURLY ENERGY IN FIREBASE
+hour_ref = ref.child("energy").child(today).child(str(hour))
+prev_energy = hour_ref.get() or 0
+hour_ref.set(prev_energy + energy_inc)
+
+# 🔥 GET TODAY ENERGY
+day_data = ref.child("energy").child(today).get()
+if day_data:
+    today_energy = sum(day_data.values())
+else:
+    today_energy = 0
+
 today_cost = today_energy * 8
-monthly_energy = st.session_state.monthly_energy.get(month, 0)
+
+# 🔥 MONTHLY ENERGY STORE
+month_ref = ref.child("monthly").child(month)
+prev_month_energy = month_ref.get() or 0
+
+# Update monthly continuously
+month_ref.set(prev_month_energy + energy_inc)
+
+monthly_energy = month_ref.get() or 0
 monthly_cost = monthly_energy * 8
 
 # ================= DASHBOARD =================
