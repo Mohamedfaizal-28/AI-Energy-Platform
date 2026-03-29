@@ -7,24 +7,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-# 🔥 PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
+# 🔥 AUTO REFRESH
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=5000, key="refresh")
+
+# 🔥 PAGE CONFIG
 st.set_page_config(
     page_title="AI Energy System",
     page_icon="⚡",
     layout="wide"
 )
 
-# 🎨 CUSTOM UI DESIGN
+# 🎨 GLASS UI
 st.markdown("""
 <style>
 body {
-    background-color: #0e1117;
+    background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
 }
 .stMetric {
-    background-color: #1c1f26;
-    padding: 15px;
-    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 15px;
     text-align: center;
+    border: 1px solid rgba(255,255,255,0.1);
 }
 h1, h2, h3 {
     color: #00ffd5;
@@ -93,7 +99,7 @@ conn.commit()
 # ---------------- SIDEBAR ----------------
 threshold = 4.5
 
-st.sidebar.title("⚙ System Control Panel")
+st.sidebar.title("⚙ Control Panel")
 menu = st.sidebar.radio("Navigation", [
     "🏠 Dashboard",
     "🤖 AI Prediction",
@@ -116,7 +122,7 @@ except:
     st.error("Upload energy_model.pkl")
     st.stop()
 
-# ---------------- DATA (IMPORTANT - BEFORE PAGES) ----------------
+# ---------------- DATA ----------------
 hour = st.slider("Select Hour (0-23)", 0, 23, 12)
 
 data = ref.child("sensor_data").get()
@@ -167,9 +173,18 @@ if menu == "🏠 Dashboard":
     st.metric("Predicted Load (kW)", prediction)
 
     if prediction > threshold:
-        st.error("⚠ OVERLOAD DETECTED")
+        st.error("🔴 OVERLOAD DETECTED")
+        st.toast("⚠ Reduce Load Immediately!")
     else:
-        st.success("✅ NORMAL LOAD")
+        st.success("🟢 SYSTEM STABLE")
+
+    st.metric("Energy Saving Potential", round(max(0, prediction - threshold), 2))
+
+    st.subheader("🤖 AI Suggestion")
+    if prediction > threshold:
+        st.warning("Turn OFF non-essential loads")
+    else:
+        st.success("System running efficiently")
 
 # 🤖 AI PREDICTION
 elif menu == "🤖 AI Prediction":
@@ -178,10 +193,6 @@ elif menu == "🤖 AI Prediction":
 
     st.metric("Predicted Load (kW)", prediction)
 
-    if prediction > threshold:
-        st.warning("Reduce Load Required!")
-
-    # SAVE DATA
     status = "OVERLOAD" if prediction > threshold else "NORMAL"
 
     cursor.execute("""
@@ -199,16 +210,14 @@ elif menu == "🔌 Relay Control":
 
     st.header("Smart Relay Control")
 
-    relay_status = {
-        "relay1": st.toggle("Relay 1", True),
-        "relay2": st.toggle("Relay 2", True),
-        "relay3": st.toggle("Relay 3", True),
-    }
+    relay1 = st.toggle("Relay 1", True)
+    relay2 = st.toggle("Relay 2", True)
+    relay3 = st.toggle("Relay 3", True)
 
     ref.child("relay_control").set({
-        "relay1": int(relay_status["relay1"]),
-        "relay2": int(relay_status["relay2"]),
-        "relay3": int(relay_status["relay3"])
+        "relay1": int(relay1),
+        "relay2": int(relay2),
+        "relay3": int(relay3)
     })
 
 # 📊 ANALYTICS
@@ -219,18 +228,14 @@ elif menu == "📊 Analytics":
     data = pd.read_csv("load_data.csv")
 
     fig, ax = plt.subplots()
-    ax.plot(data["hour"], data["load"], marker='o')
-    ax.axhline(y=threshold, linestyle='--')
-    ax.scatter(hour, prediction)
+    ax.plot(data["hour"], data["load"], linewidth=3)
+    ax.axhline(y=threshold, linestyle='--', linewidth=2)
+    ax.scatter(hour, prediction, s=150)
+
+    ax.set_facecolor("#111")
+    fig.patch.set_facecolor("#111")
+
     st.pyplot(fig)
-
-    solar = [0,0,0,0,0,0.5,1,2,3,4,5,5.5,6,6,5.5,5,4,3,2,1,0.5,0,0,0]
-
-    fig2, ax2 = plt.subplots()
-    ax2.plot(data["hour"], data["load"], label="Load")
-    ax2.plot(data["hour"], solar, label="Solar")
-    ax2.legend()
-    st.pyplot(fig2)
 
 # 📄 REPORTS
 elif menu == "📄 Reports":
