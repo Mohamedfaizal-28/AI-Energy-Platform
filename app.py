@@ -54,7 +54,6 @@ if not st.session_state.login:
 india = pytz.timezone('Asia/Kolkata')
 now = datetime.now(india)
 today = now.strftime("%Y-%m-%d")
-month = now.strftime("%Y-%m")
 
 # ---------------- FIREBASE ----------------
 if not firebase_admin._apps:
@@ -73,7 +72,7 @@ if sensor:
     voltage = float(sensor.get("voltage", 0))
     current = float(sensor.get("current", 0))
     temp = float(sensor.get("temperature", 0))
-    power_watt = float(sensor.get("power", 0))   # ✅ WATT
+    power_watt = float(sensor.get("power", 0))
 else:
     voltage, current, temp, power_watt = 0, 0, 0, 0
 
@@ -86,28 +85,22 @@ else:
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.title("⚙ Control Panel")
-menu = st.sidebar.radio("Navigation", ["🏠 Dashboard", "🔌 Relay Control", "📊 Analytics", "📄 Reports"])
+menu = st.sidebar.radio("Navigation", ["🏠 Dashboard", "🔌 Relay Control"])
 
-# 🔥 RELAY LOAD (FOR AI ONLY)
-relay_load = (2 if r1 else 0) + (1.5 if r2 else 0) + (1 if r3 else 0)
+# 🔥 SLIDER (AI ONLY)
+sim = st.sidebar.slider("⚡ AI Load Simulation", 0.0, 6.5, 0.0)
 
-# 🔥 OVERLOAD SLIDER (AI ONLY)
-sim = st.sidebar.slider("⚡ Overload Simulation", 0.0, 5.0, 0.0)
-
-# 🔥 AI TOTAL LOAD (NOT DASHBOARD)
-ai_total = relay_load + sim
-threshold = 4.5
-
-# ---------------- AI LOAD SHEDDING ----------------
+# ---------------- AI LOGIC ----------------
 ai_active = False
-if ai_total > threshold:
+
+if sim > 4.5:
     ai_active = True
 
-    if ai_total <= 5.5:
+    if 4.51 <= sim <= 5.5:
         r3 = False
-    elif ai_total <= 6:
+    elif 5.51 <= sim <= 6.0:
         r2 = False
-    else:
+    elif 6.01 <= sim <= 6.5:
         r1 = False
 
     ref.child("relay_control").update({
@@ -115,20 +108,6 @@ if ai_total > threshold:
         "relay2": int(r2),
         "relay3": int(r3)
     })
-
-# ---------------- ENERGY ----------------
-interval = 3
-hour = now.hour
-
-energy_inc = ai_total * (interval / 3600)
-
-hour_ref = ref.child("energy").child(today).child(str(hour))
-prev_energy = hour_ref.get() or 0
-hour_ref.set(prev_energy + energy_inc)
-
-day_data = ref.child("energy").child(today).get()
-today_energy = sum(day_data.values()) if day_data else 0
-today_cost = today_energy * 8
 
 # ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
@@ -140,24 +119,27 @@ if menu == "🏠 Dashboard":
     col2.metric("Current", f"{current} A")
     col3.metric("Temperature", f"{temp} °C")
 
-    # ✅ FIXED: SENSOR ONLY (WATT)
+    # 🔥 SENSOR ONLY
     st.metric("Live Power (W)", round(power_watt,2))
-
-    col4, col5 = st.columns(2)
-    col4.metric("Today Energy", round(today_energy,3))
-    col5.metric("Today Cost ₹", round(today_cost,2))
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
-    if power_watt > (threshold * 1000):
-        st.error("🔴 OVERLOAD (Sensor)")
+    # 🔥 OVERLOAD BASED ON SLIDER
+    if sim > 4.5:
+        st.error("🔴 OVERLOAD (AI Prediction)")
     else:
         st.success("🟢 NORMAL")
 
-# ================= RELAY =================
+# ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
+
+    # 🔥 ADD SLIDER HERE ALSO
+    sim2 = st.slider("⚡ AI Load Simulation", 0.0, 6.5, sim)
+
+    if sim2 != sim:
+        st.sidebar.slider("⚡ AI Load Simulation", 0.0, 6.5, sim2)
 
     if ai_active:
         st.warning("⚠ AI Load Shedding Active")
@@ -174,12 +156,8 @@ elif menu == "🔌 Relay Control":
         })
         st.rerun()
 
-# ================= ANALYTICS =================
-elif menu == "📊 Analytics":
-    st.header("Analytics Coming Soon")
-
-# ================= REPORT =================
-elif menu == "📄 Reports":
-    st.header("Reports")
-    report = f"Date: {today}\nEnergy: {today_energy}\nCost: {today_cost}"
-    st.download_button("Download Report", report)
+    # 🔥 STATUS
+    if sim2 > 4.5:
+        st.error("🔴 OVERLOAD REGION")
+    else:
+        st.success("🟢 SAFE LOAD")
