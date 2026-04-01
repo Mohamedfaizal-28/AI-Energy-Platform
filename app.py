@@ -227,4 +227,3 @@ Monthly Energy: {monthly_energy}
 """
 
     st.download_button("Download Report", report)
-```
