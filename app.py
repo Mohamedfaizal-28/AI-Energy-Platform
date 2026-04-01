@@ -1,14 +1,16 @@
+```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 import pytz
+import joblib
 
 # 🔥 FIREBASE
 import firebase_admin
 from firebase_admin import credentials, db
 
-# AUTO REFRESH
+# 🔁 AUTO REFRESH
 st_autorefresh(interval=3000, key="refresh")
 
 # PAGE
@@ -61,6 +63,9 @@ if not firebase_admin._apps:
 
 ref = db.reference('/')
 
+# ---------------- LOAD AI MODEL ----------------
+model = joblib.load("energy_model.pkl")
+
 # ---------------- SESSION ----------------
 if "date" not in st.session_state:
     st.session_state.date = today
@@ -68,39 +73,8 @@ if "date" not in st.session_state:
 if "energy_log" not in st.session_state:
     st.session_state.energy_log = {i: 0 for i in range(24)}
 
-if "daily_energy" not in st.session_state:
-    st.session_state.daily_energy = {}
-
 if "monthly_energy" not in st.session_state:
     st.session_state.monthly_energy = {}
-
-# 🔁 DAILY RESET
-if st.session_state.date != today:
-    yesterday_energy = sum(st.session_state.energy_log.values())
-
-    st.session_state.daily_energy[st.session_state.date] = yesterday_energy
-    st.session_state.monthly_energy[month] = st.session_state.monthly_energy.get(month, 0) + yesterday_energy
-
-    st.session_state.energy_log = {i: 0 for i in range(24)}
-    st.session_state.date = today
-
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("⚙ Control Panel")
-
-menu = st.sidebar.radio("Navigation", [
-    "🏠 Dashboard",
-    "🔌 Relay Control",
-    "📊 Analytics",
-    "📄 Reports"
-])
-
-st.sidebar.write(f"User: {st.session_state.role}")
-
-if st.sidebar.button("Logout"):
-    st.session_state.login = False
-    st.rerun()
-
-threshold = 4.5  # kW
 
 # ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
@@ -110,7 +84,7 @@ if sensor:
     voltage = float(sensor.get("voltage", 0))
     current = float(sensor.get("current", 0))
     temp = float(sensor.get("temperature", 0))
-    power = float(sensor.get("power", 0))  # W
+    power = float(sensor.get("power", 0))
 else:
     voltage, current, temp, power = 0, 0, 0, 0
 
@@ -121,46 +95,46 @@ if relay:
 else:
     r1 = r2 = r3 = False
 
-# ---------------- RELAY LOAD ----------------
-r1_load = 2.0 if r1 else 0
-r2_load = 1.5 if r2 else 0
-r3_load = 1.0 if r3 else 0
+# ---------------- AI PREDICTION ----------------
+predicted_load = model.predict([[now.hour, voltage, current, temp]])[0]
 
-relay_total = r1_load + r2_load + r3_load
+# TREND
+if "prev_load" not in st.session_state:
+    st.session_state.prev_load = predicted_load
 
-# ---------------- SLIDER ----------------
-relay_total = float(relay_total)
-relay_total = max(0.0, min(relay_total, 7.0))
+trend = predicted_load - st.session_state.prev_load
+st.session_state.prev_load = predicted_load
 
-if "sim" not in st.session_state:
-    st.session_state.sim = relay_total
+# THRESHOLD (TIME BASED)
+if 18 <= now.hour <= 22:
+    threshold = 4.0
+else:
+    threshold = 5.0
 
-sim = st.sidebar.slider(
-    "⚡ Total Load (kW)",
-    0.0,
-    7.0,
-    st.session_state.sim,
-    step=0.1
-)
+# AI STATUS
+if predicted_load > threshold and trend > 0:
+    ai_status = "HIGH RISK"
+elif predicted_load > threshold:
+    ai_status = "RISK"
+else:
+    ai_status = "SAFE"
 
-st.session_state.sim = sim
+# SEND AI TO FIREBASE
+ref.child("AI").set({
+    "predicted_load": float(predicted_load),
+    "trend": float(trend),
+    "status": ai_status
+})
 
-# 🔥 AI POWER
-total_power = sim
+# ---------------- SIDEBAR ----------------
+st.sidebar.title("⚙ Control Panel")
 
-# ---------------- ENERGY ----------------
-interval = 3
-hour = now.hour
-
-power_kw = power / 1000
-energy_inc = power_kw * (interval / 3600)
-st.session_state.energy_log[hour] += energy_inc
-
-today_energy = sum(st.session_state.energy_log.values())
-today_cost = today_energy * 8
-
-monthly_energy = st.session_state.monthly_energy.get(month, 0)
-monthly_cost = monthly_energy * 8
+menu = st.sidebar.radio("Navigation", [
+    "🏠 Dashboard",
+    "🔌 Relay Control",
+    "📊 Analytics",
+    "📄 Reports"
+])
 
 # ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
@@ -174,20 +148,18 @@ if menu == "🏠 Dashboard":
 
     st.metric("Live Power (W)", round(power, 2))
 
-    col4, col5 = st.columns(2)
-    col4.metric("Today Energy", round(today_energy, 3))
-    col5.metric("Today Cost ₹", round(today_cost, 2))
+    # 🔥 AI DISPLAY
+    st.metric("Predicted Load (kW)", round(predicted_load, 2))
+    st.write(f"Trend: {round(trend,2)}")
 
-    col6, col7 = st.columns(2)
-    col6.metric("Monthly Energy", round(monthly_energy, 3))
-    col7.metric("Monthly Cost ₹", round(monthly_cost, 2))
+    if ai_status == "HIGH RISK":
+        st.error("🔴 High Overload Risk")
+    elif ai_status == "RISK":
+        st.warning("🟠 Moderate Risk")
+    else:
+        st.success("🟢 System Stable")
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
-
-    if total_power >= threshold:
-        st.error("🔴 OVERLOAD")
-    else:
-        st.success("🟢 NORMAL")
 
 # ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
@@ -199,14 +171,16 @@ elif menu == "🔌 Relay Control":
     new_r3 = st.toggle("Relay 3", r3)
 
     # 🔥 AI CONTROL
-    if total_power >= threshold:
+    if predicted_load > threshold:
         st.warning("⚠ AI Optimizing Load")
 
-        if 4.5 <= total_power <= 5.5:
+        if predicted_load > threshold:
             new_r3 = False
-        elif 5.5 < total_power <= 6.0:
+
+        if predicted_load > threshold + 0.5:
             new_r2 = False
-        elif total_power > 6.0:
+
+        if predicted_load > threshold + 1.0:
             new_r1 = False
 
     ref.child("relay_control").set({
@@ -215,7 +189,6 @@ elif menu == "🔌 Relay Control":
         "relay3": int(new_r3)
     })
 
-    st.write("Final Relay State (AI Controlled):")
     st.write({
         "Relay1": new_r1,
         "Relay2": new_r2,
@@ -226,6 +199,12 @@ elif menu == "🔌 Relay Control":
 elif menu == "📊 Analytics":
 
     st.header("Hourly Energy")
+
+    hour = now.hour
+    power_kw = power / 1000
+    energy_inc = power_kw * (3 / 3600)
+
+    st.session_state.energy_log[hour] += energy_inc
 
     df = pd.DataFrame({
         "Hour": list(st.session_state.energy_log.keys()),
@@ -239,14 +218,14 @@ elif menu == "📄 Reports":
 
     st.header("Reports")
 
-    st.write("Daily Energy:", st.session_state.daily_energy)
-    st.write("Monthly Energy:", st.session_state.monthly_energy)
+    today_energy = sum(st.session_state.energy_log.values())
+    monthly_energy = st.session_state.monthly_energy.get(month, 0)
 
     report = f"""
 Date: {today}
 Today Energy: {today_energy}
 Monthly Energy: {monthly_energy}
-Cost: {today_cost}
 """
 
     st.download_button("Download Report", report)
+```
