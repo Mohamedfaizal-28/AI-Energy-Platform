@@ -7,3 +7,4 @@ scikit-learn
 requests
 firebase-admin
 streamlit-autorefresh
+pytz
