@@ -77,10 +77,8 @@ if "monthly_energy" not in st.session_state:
 # 🔁 DAILY RESET
 if st.session_state.date != today:
     yesterday_energy = sum(st.session_state.energy_log.values())
-
     st.session_state.daily_energy[st.session_state.date] = yesterday_energy
     st.session_state.monthly_energy[month] = st.session_state.monthly_energy.get(month, 0) + yesterday_energy
-
     st.session_state.energy_log = {i: 0 for i in range(24)}
     st.session_state.date = today
 
@@ -123,16 +121,15 @@ else:
     r1 = r2 = r3 = False
 
 # ---------------- RELAY LOAD ----------------
-r1_load = 2.0 if r1 else 0
-r2_load = 1.5 if r2 else 0
-r3_load = 1.0 if r3 else 0
+relay_total = (
+    (2.0 if r1 else 0) +
+    (1.5 if r2 else 0) +
+    (1.0 if r3 else 0)
+)
 
-relay_total = r1_load + r2_load + r3_load
+relay_total = float(max(0.0, min(relay_total, 7.0)))
 
 # ---------------- SLIDER ----------------
-relay_total = float(relay_total)
-relay_total = max(0.0, min(relay_total, 7.0))
-
 if "sim" not in st.session_state:
     st.session_state.sim = relay_total
 
@@ -145,8 +142,6 @@ sim = st.sidebar.slider(
 )
 
 st.session_state.sim = sim
-
-# 🔥 AI POWER
 total_power = sim
 
 # ---------------- ENERGY ----------------
@@ -175,7 +170,7 @@ if menu == "🏠 Dashboard":
 
     st.metric("Live Power (W)", round(power, 2))
     st.metric("Energy (kWh)", round(energy, 3))
-    
+
     col4, col5 = st.columns(2)
     col4.metric("Today Energy", round(today_energy, 3))
     col5.metric("Today Cost ₹", round(today_cost, 2))
@@ -183,6 +178,8 @@ if menu == "🏠 Dashboard":
     col6, col7 = st.columns(2)
     col6.metric("Monthly Energy", round(monthly_energy, 3))
     col7.metric("Monthly Cost ₹", round(monthly_cost, 2))
+
+    st.metric("Total Load (kW)", round(total_power, 2))
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
@@ -200,30 +197,33 @@ elif menu == "🔌 Relay Control":
     new_r2 = st.toggle("Relay 2", r2)
     new_r3 = st.toggle("Relay 3", r3)
 
-    # 🔥 AI CONTROL
+    # 🔥 AI CONTROL (FIXED)
     if total_power > threshold:
-    st.warning("⚠ AI Optimizing Load")
+        st.warning("⚠ AI Optimizing Load")
 
-    if total_power > 6.0:
-        new_r1 = False
-    elif total_power > 5.5:
-        new_r2 = False
-    elif total_power > 4.5:
-        new_r3 = False
+        if total_power > 6.0:
+            new_r1 = False
+        elif total_power > 5.5:
+            new_r2 = False
+        elif total_power > 4.5:
+            new_r3 = False
 
+    # UPDATE FIREBASE
     ref.child("relay_control").set({
         "relay1": int(new_r1),
         "relay2": int(new_r2),
         "relay3": int(new_r3)
     })
-    // AUTO ADJUST SLIDER BASED ON FINAL RELAY STATE
+
+    # AUTO UPDATE SLIDER
     relay_total = (
-    (2.0 if new_r1 else 0) +
-    (1.5 if new_r2 else 0) +
-    (1.0 if new_r3 else 0)
+        (2.0 if new_r1 else 0) +
+        (1.5 if new_r2 else 0) +
+        (1.0 if new_r3 else 0)
     )
 
     st.session_state.sim = relay_total
+
     st.write("Final Relay State (AI Controlled):")
     st.write({
         "Relay1": new_r1,
