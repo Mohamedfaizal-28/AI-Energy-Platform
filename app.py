@@ -166,32 +166,27 @@ monthly_energy = st.session_state.monthly_energy.get(month, 0)
 monthly_cost = monthly_energy * 8
 
 # ================= DASHBOARD =================
+# ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
-# 🎨 Dashboard Text Visibility Fix
-st.markdown("""
-<style>
-/* Metric label */
-[data-testid="stMetricLabel"] {
-    color: white !important;
-    font-weight: bold;
-}
 
-/* Metric value */
-[data-testid="stMetricValue"] {
-    color: white !important;
-}
-
-/* Metric delta (if any) */
-[data-testid="stMetricDelta"] {
-    color: white !important;
-}
-
-/* General text */
-h1, h2, h3, h4, h5, h6, p {
-    color: white !important;
-}
-</style>
-""", unsafe_allow_html=True)
+    # 🎨 Dashboard Text Visibility Fix
+    st.markdown("""
+    <style>
+    [data-testid="stMetricLabel"] {
+        color: white !important;
+        font-weight: bold;
+    }
+    [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+    [data-testid="stMetricDelta"] {
+        color: white !important;
+    }
+    h1, h2, h3, h4, h5, h6, p {
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     st.title("⚡ AI Energy SCADA Dashboard")
 
