@@ -186,7 +186,7 @@ if menu == "🏠 Dashboard":
 
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
-    if total_power >= threshold:
+    if total_power > threshold:
         st.error("🔴 OVERLOAD")
     else:
         st.success("🟢 NORMAL")
@@ -201,7 +201,7 @@ elif menu == "🔌 Relay Control":
     new_r3 = st.toggle("Relay 3", r3)
 
     # 🔥 AI CONTROL
-    if total_power >= threshold:
+    if total_power > threshold:
         st.warning("⚠ AI Optimizing Load")
 
         if 4.5 <= total_power <= 5.5:
