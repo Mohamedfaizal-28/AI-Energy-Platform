@@ -182,9 +182,7 @@ if menu == "🏠 Dashboard":
     [data-testid="stMetricDelta"] {
         color: white !important;
     }
-    h1, h2, h3, h4, h5, h6, p {
-        color: white !important;
-    }
+    
     </style>
     """, unsafe_allow_html=True)
 
