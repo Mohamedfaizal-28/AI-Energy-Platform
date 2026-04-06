@@ -167,6 +167,31 @@ monthly_cost = monthly_energy * 8
 
 # ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
+# 🎨 Dashboard Text Visibility Fix
+st.markdown("""
+<style>
+/* Metric label */
+[data-testid="stMetricLabel"] {
+    color: white !important;
+    font-weight: bold;
+}
+
+/* Metric value */
+[data-testid="stMetricValue"] {
+    color: white !important;
+}
+
+/* Metric delta (if any) */
+[data-testid="stMetricDelta"] {
+    color: white !important;
+}
+
+/* General text */
+h1, h2, h3, h4, h5, h6, p {
+    color: white !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
     st.title("⚡ AI Energy SCADA Dashboard")
 
