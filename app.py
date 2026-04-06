@@ -202,26 +202,26 @@ elif menu == "🔌 Relay Control":
 
     # 🔥 AI CONTROL
     if total_power > threshold:
-        st.warning("⚠ AI Optimizing Load")
+    st.warning("⚠ AI Optimizing Load")
 
-        if 4.5 <= total_power <= 5.5:
-            new_r3 = False
-        elif 5.5 < total_power <= 6.0:
-            new_r2 = False
-        elif total_power > 6.0:
-            new_r1 = False
+    if total_power > 6.0:
+        new_r1 = False
+    elif total_power > 5.5:
+        new_r2 = False
+    elif total_power > 4.5:
+        new_r3 = False
 
     ref.child("relay_control").set({
         "relay1": int(new_r1),
         "relay2": int(new_r2),
         "relay3": int(new_r3)
     })
-    # AUTO ADJUST SLIDER BASED ON FINAL RELAY STATE
-relay_total = (
+    // AUTO ADJUST SLIDER BASED ON FINAL RELAY STATE
+    relay_total = (
     (2.0 if new_r1 else 0) +
     (1.5 if new_r2 else 0) +
     (1.0 if new_r3 else 0)
-)
+    )
 
     st.session_state.sim = relay_total
     st.write("Final Relay State (AI Controlled):")
