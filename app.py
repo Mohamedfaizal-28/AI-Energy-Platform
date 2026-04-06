@@ -216,7 +216,14 @@ elif menu == "🔌 Relay Control":
         "relay2": int(new_r2),
         "relay3": int(new_r3)
     })
+    # AUTO ADJUST SLIDER BASED ON FINAL RELAY STATE
+relay_total = (
+    (2.0 if new_r1 else 0) +
+    (1.5 if new_r2 else 0) +
+    (1.0 if new_r3 else 0)
+)
 
+    st.session_state.sim = relay_total
     st.write("Final Relay State (AI Controlled):")
     st.write({
         "Relay1": new_r1,
