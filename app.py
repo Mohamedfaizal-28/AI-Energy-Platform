@@ -107,12 +107,13 @@ sensor = ref.child("sensor_data").get()
 relay = ref.child("relay_control").get()
 
 if sensor:
-    voltage = float(sensor.get("voltage", 0))
-    current = float(sensor.get("current", 0))
-    temp = float(sensor.get("temperature", 0))
-    power = float(sensor.get("power", 0))  # W
+    voltage = float(sensor.get("voltage") or 0)
+    current = float(sensor.get("current") or 0)
+    temp = float(sensor.get("temperature") or 0)
+    power = float(sensor.get("power") or 0)
+    energy = float(sensor.get("energy") or 0)
 else:
-    voltage, current, temp, power = 0, 0, 0, 0
+    voltage, current, temp, power, energy = 0, 0, 0, 0, 0
 
 if relay:
     r1 = bool(relay.get("relay1", 0))
@@ -152,7 +153,7 @@ total_power = sim
 interval = 3
 hour = now.hour
 
-power_kw = power / 1000
+power_kw = (power or 0) / 1000
 energy_inc = power_kw * (interval / 3600)
 st.session_state.energy_log[hour] += energy_inc
 
@@ -173,7 +174,8 @@ if menu == "🏠 Dashboard":
     col3.metric("Temperature", f"{temp} °C")
 
     st.metric("Live Power (W)", round(power, 2))
-
+    st.metric("Energy (kWh)", round(energy, 3))
+    
     col4, col5 = st.columns(2)
     col4.metric("Today Energy", round(today_energy, 3))
     col5.metric("Today Cost ₹", round(today_cost, 2))
