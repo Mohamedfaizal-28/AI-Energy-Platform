@@ -130,18 +130,25 @@ relay_total = (
 relay_total = float(max(0.0, min(relay_total, 7.0)))
 
 # ---------------- SLIDER ----------------
+# SAFE INITIAL VALUE
 if "sim" not in st.session_state:
-    st.session_state.sim = relay_total
+    st.session_state.sim = float(relay_total)
 
+# ENSURE VALUE IS ALWAYS VALID
+st.session_state.sim = max(0.0, min(float(st.session_state.sim), 7.0))
+
+# SLIDER
 sim = st.sidebar.slider(
     "⚡ Total Load (kW)",
-    0.0,
-    7.0,
-    st.session_state.sim,
+    min_value=0.0,
+    max_value=7.0,
+    value=st.session_state.sim,
     step=0.1
 )
 
+# UPDATE SESSION
 st.session_state.sim = sim
+
 total_power = sim
 
 # ---------------- ENERGY ----------------
