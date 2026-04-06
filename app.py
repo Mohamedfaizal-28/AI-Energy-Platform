@@ -17,8 +17,54 @@ st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 # 🎨 STYLE
 st.markdown("""
 <style>
-body {background-color:#0e1117;color:white;}
-.stMetric {background:#1c1f26;padding:15px;border-radius:10px;}
+
+/* Background */
+body {
+    background-color: #0e1117;
+    color: #FFFFFF !important;
+}
+
+/* Main text */
+html, body, [class*="css"] {
+    color: #FFFFFF !important;
+}
+
+/* Metric card */
+.stMetric {
+    background: #1c1f26;
+    padding: 15px;
+    border-radius: 12px;
+}
+
+/* Metric label */
+.stMetric label {
+    color: #CCCCCC !important;
+    font-size: 14px;
+}
+
+/* Metric value */
+.stMetric div {
+    color: #FFFFFF !important;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #111418;
+    color: white;
+}
+
+/* Buttons */
+button {
+    color: white !important;
+}
+
+/* Slider text */
+.stSlider label {
+    color: white !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
