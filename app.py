@@ -8,12 +8,25 @@ import pytz
 import firebase_admin
 from firebase_admin import credentials, db
 
+import csv
+import time
+
+def save_load_data(load, r1, r2, r3):
+    from datetime import datetime
+    current_time = datetime.now().strftime("%H:%M:%S")
+
+    with open("load_data.csv", "a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([current_time, load, int(r1), int(r2), int(r3)])
+        
 # AUTO REFRESH
 st_autorefresh(interval=3000, key="refresh")
 
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
-
+if "last_saved" not in st.session_state:
+    st.session_state.last_saved = 0
+    
 # 🎨 STYLE
 st.markdown("""
 <style>
@@ -151,6 +164,15 @@ st.session_state.sim = sim
 
 total_power = sim
 
+# -------- SAVE DATA EVERY 5 SECONDS --------
+if "prev_load" not in st.session_state:
+    st.session_state.prev_load = None
+
+if time.time() - st.session_state.last_saved > 5:
+    if st.session_state.prev_load != total_power:
+        save_load_data(total_power, r1, r2, r3)
+        st.session_state.prev_load = total_power
+        st.session_state.last_saved = time.time()
 # ---------------- ENERGY ----------------
 interval = 3
 hour = now.hour
