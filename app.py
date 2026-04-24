@@ -170,8 +170,11 @@ total_power = sim
 # 🔥 AI INPUT
 input_data = np.array([[voltage, current, temp, current_hour]])
 
-# 🔥 AI PREDICTION
-predicted_load = max(0, model.predict(input_data)[0])
+# 🔥 FIX 2 (ADD HERE)
+if voltage == 0 or current < 0.01:
+    predicted_load = 0
+else:
+    predicted_load = max(0, model.predict(input_data)[0])
 
 # -------- SAVE DATA EVERY 5 SECONDS --------
 if "prev_load" not in st.session_state:
