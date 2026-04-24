@@ -10,6 +10,8 @@ from firebase_admin import credentials, db
 
 import csv
 import time
+import pickle
+import numpy as np
 
 def save_load_data(load, r1, r2, r3):
     from datetime import datetime
@@ -63,7 +65,7 @@ india = pytz.timezone('Asia/Kolkata')
 now = datetime.now(india)
 today = now.strftime("%Y-%m-%d")
 month = now.strftime("%Y-%m")
-
+current_hour = now.hour
 # ---------------- FIREBASE ----------------
 if not firebase_admin._apps:
     firebase_secret = dict(st.secrets["firebase"])
@@ -73,7 +75,8 @@ if not firebase_admin._apps:
     })
 
 ref = db.reference('/')
-
+# 🔥 LOAD AI MODEL
+model = pickle.load(open("energy_model.pkl", "rb"))
 # ---------------- SESSION ----------------
 if "date" not in st.session_state:
     st.session_state.date = today
@@ -111,7 +114,7 @@ if st.sidebar.button("Logout"):
     st.session_state.login = False
     st.rerun()
 
-threshold = 4.5  # kW
+threshold = 0.1  # kW
 
 # ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
@@ -163,6 +166,12 @@ sim = st.sidebar.slider(
 st.session_state.sim = sim
 
 total_power = sim
+
+# 🔥 AI INPUT
+input_data = np.array([[voltage, current, temp, current_hour]])
+
+# 🔥 AI PREDICTION
+predicted_load = model.predict(input_data)[0]
 
 # -------- SAVE DATA EVERY 5 SECONDS --------
 if "prev_load" not in st.session_state:
@@ -227,7 +236,7 @@ if menu == "🏠 Dashboard":
     col7.metric("Monthly Cost ₹", round(monthly_cost, 2))
 
     st.metric("Total Load (kW)", round(total_power, 2))
-
+    st.metric("Predicted Load (W)", round(predicted_load, 2))
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
     if total_power > threshold:
@@ -244,16 +253,16 @@ elif menu == "🔌 Relay Control":
     new_r2 = st.toggle("Relay 2", r2)
     new_r3 = st.toggle("Relay 3", r3)
 
-    # 🔥 AI CONTROL (FIXED)
-    if total_power > threshold:
-        st.warning("⚠ AI Optimizing Load")
+    # 🔥 AI BASED CONTROL (INSIDE RELAY SECTION)
+    if predicted_load > (threshold * 1000):  # convert kW → W
+        st.warning("⚠ AI Predicted Overload - Optimizing Load")
 
-        if total_power > 6.0:
-            new_r1 = False
-        elif total_power > 5.5:
-            new_r2 = False
-        elif total_power > 4.5:
+        if predicted_load > 100:
             new_r3 = False
+        if predicted_load > 110:
+            new_r2 = False
+        if predicted_load > 120:
+            new_r1 = False
 
     # UPDATE FIREBASE
     ref.child("relay_control").set({
@@ -262,7 +271,7 @@ elif menu == "🔌 Relay Control":
         "relay3": int(new_r3)
     })
 
-    # AUTO UPDATE SLIDER
+    # UPDATE SLIDER
     relay_total = (
         (2.0 if new_r1 else 0) +
         (1.5 if new_r2 else 0) +
