@@ -128,7 +128,14 @@ threshold = 0.1  # kW
 # ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
 relay = ref.child("relay_control").get()
-
+# 🔥 FORCE INITIAL SAFE STATE
+if relay is None:
+    ref.child("relay_control").set({
+        "relay1": 0,
+        "relay2": 0,
+        "relay3": 0
+    })
+    
 if sensor:
     voltage = float(sensor.get("voltage") or 0)
     current = float(sensor.get("current") or 0)
@@ -154,34 +161,14 @@ relay_total = (
 
 relay_total = float(max(0.0, min(relay_total, 7.0)))
 
-# ---------------- SLIDER ----------------
-# SAFE INITIAL VALUE
-if "sim" not in st.session_state:
-    st.session_state.sim = float(relay_total)
-
-# ENSURE VALUE IS ALWAYS VALID
-st.session_state.sim = max(0.0, min(float(st.session_state.sim), 7.0))
-
-# SLIDER
-sim = st.sidebar.slider(
-    "⚡ Total Load (kW)",
-    min_value=0.0,
-    max_value=7.0,
-    value=st.session_state.sim,
-    step=0.1
-)
-
-# UPDATE SESSION
-st.session_state.sim = sim
-
-total_power = sim
+total_power = relay_total
 
 # 🔥 AI INPUT
 input_data = np.array([[voltage, current, temp, current_hour]])
 
 # 🔥 FIX 2 (ADD HERE)
 if voltage == 0 or current < 0.01:
-    predicted_load = 0
+    predicted_load = total_power * 1000  # fallback when sensor fails
 else:
     predicted_load = max(0, model.predict(input_data)[0])
 
@@ -315,8 +302,6 @@ elif menu == "🔌 Relay Control":
         (1.5 if new_r2 else 0) +
         (1.0 if new_r3 else 0)
     )
-
-    st.session_state.sim = relay_total
 
     st.write("Final Relay State (AI Controlled):")
     st.write({
