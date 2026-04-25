@@ -140,6 +140,8 @@ menu = st.sidebar.radio("Navigation", [
 
 st.sidebar.write(f"User: {st.session_state.role}")
 if "pending_request" not in st.session_state:
+    if "last_warning" not in st.session_state:
+    st.session_state.last_warning = False
     st.session_state.pending_request = None
     
 if st.sidebar.button("Logout"):
@@ -280,20 +282,26 @@ elif menu == "🔌 Relay Control":
 
         future_load = max(predicted_load, total_power * 1000) + 40
 
-        if future_load > threshold * 1000:
-            st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
-            speak(
-                  "Warning. Turning on this load may cause overload. "
-                  "Please turn off another load to continue safely."
-            )
+if future_load > threshold * 1000:
 
-            st.session_state.pending_request = "relay3"
-            new_r3 = False
+    if not st.session_state.last_warning:
+        st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
+        speak(
+            "Warning. Turning on this load may cause overload. "
+            "Please turn off another load to continue safely."
+        )
+
+        st.session_state.last_warning = True
+
+    st.session_state.pending_request = "relay3"
+    new_r3 = False
 
     # 🔥 AI REACTIVE CONTROL
     if predicted_load > (threshold * 1000):
         st.warning("⚠ AI Predicted Overload - Optimizing Load")
+    if not st.session_state.last_warning:
         speak("Overload detected. Optimizing load.")
+        st.session_state.last_warning = True
 
         if predicted_load > 100:
             new_r3 = False
@@ -306,7 +314,7 @@ elif menu == "🔌 Relay Control":
     if st.session_state.pending_request:
 
         if predicted_load < threshold * 1000:
-
+            st.session_state.last_warning = False
             if st.session_state.pending_request == "relay3":
                 new_r3 = True
 
