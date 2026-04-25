@@ -25,11 +25,17 @@ def save_load_data(load, r1, r2, r3):
         writer.writerow([current_time, load, int(r1), int(r2), int(r3)])
         
 # AUTO REFRESH
-st_autorefresh(interval=1000, key="refresh")
+if not st.session_state.get("is_speaking", False):
+    st_autorefresh(interval=1000, key="refresh")
 
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 def speak(text):
+    from gtts import gTTS
+    import tempfile, base64
+
+    st.session_state.is_speaking = True
+
     tts = gTTS(text=text, lang='en')
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(temp_file.name)
@@ -38,14 +44,22 @@ def speak(text):
     audio_base64 = base64.b64encode(audio_bytes).decode()
 
     audio_html = f"""
-    <audio autoplay>
+    <audio autoplay onended="fetch('/_stcore/streamlit/setComponentValue?value=done')">
         <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
     </audio>
     """
 
     st.markdown(audio_html, unsafe_allow_html=True)
+
+    # Estimate speaking time (rough)
+    duration = max(3, len(text.split()) * 0.4)
+    time.sleep(duration)
+
+    st.session_state.is_speaking = False
 if "last_saved" not in st.session_state:
     st.session_state.last_saved = 0
+if "is_speaking" not in st.session_state:
+    st.session_state.is_speaking = False
     
 # 🎨 STYLE
 st.markdown("""
