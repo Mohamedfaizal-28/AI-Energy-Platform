@@ -52,12 +52,7 @@ def speak(text):
     """
 
     st.markdown(audio_html, unsafe_allow_html=True)
-
-    # 🔥 IMPORTANT: reset after small delay
-    time.sleep(2)
     st.session_state.is_speaking = False
-
-
     
 # 🎨 STYLE
 st.markdown("""
