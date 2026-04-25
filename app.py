@@ -14,6 +14,7 @@ import pickle
 import numpy as np
 from gtts import gTTS
 import tempfile
+import base64
 
 def save_load_data(load, r1, r2, r3):
     from datetime import datetime
@@ -32,7 +33,17 @@ def speak(text):
     tts = gTTS(text=text, lang='en')
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(temp_file.name)
-    st.audio(temp_file.name)
+
+    audio_bytes = open(temp_file.name, "rb").read()
+    audio_base64 = base64.b64encode(audio_bytes).decode()
+
+    audio_html = f"""
+    <audio autoplay>
+        <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+    </audio>
+    """
+
+    st.markdown(audio_html, unsafe_allow_html=True)
 if "last_saved" not in st.session_state:
     st.session_state.last_saved = 0
     
