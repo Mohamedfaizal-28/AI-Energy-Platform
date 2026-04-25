@@ -23,7 +23,12 @@ def save_load_data(load, r1, r2, r3):
     with open("load_data.csv", "a", newline="") as file:
         writer = csv.writer(file)
         writer.writerow([current_time, load, int(r1), int(r2), int(r3)])
-        
+
+if "last_saved" not in st.session_state:
+    st.session_state.last_saved = 0
+if "is_speaking" not in st.session_state:
+    st.session_state.is_speaking = False
+    
 # AUTO REFRESH
 if not st.session_state.get("is_speaking", False):
     st_autorefresh(interval=1000, key="refresh")
@@ -53,13 +58,8 @@ def speak(text):
 
     # Estimate speaking time (rough)
     duration = max(3, len(text.split()) * 0.4)
-    time.sleep(duration)
 
-    st.session_state.is_speaking = False
-if "last_saved" not in st.session_state:
-    st.session_state.last_saved = 0
-if "is_speaking" not in st.session_state:
-    st.session_state.is_speaking = False
+
     
 # 🎨 STYLE
 st.markdown("""
