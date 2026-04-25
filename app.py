@@ -12,6 +12,8 @@ import csv
 import time
 import pickle
 import numpy as np
+from gtts import gTTS
+import tempfile
 
 def save_load_data(load, r1, r2, r3):
     from datetime import datetime
@@ -26,6 +28,11 @@ st_autorefresh(interval=3000, key="refresh")
 
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
+def speak(text):
+    tts = gTTS(text=text, lang='en')
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    tts.save(temp_file.name)
+    st.audio(temp_file.name)
 if "last_saved" not in st.session_state:
     st.session_state.last_saved = 0
     
@@ -102,6 +109,8 @@ if st.session_state.date != today:
 st.sidebar.title("⚙ Control Panel")
 
 menu = st.sidebar.radio("Navigation", [
+    if "pending_request" not in st.session_state:
+    st.session_state.pending_request = None
     "🏠 Dashboard",
     "🔌 Relay Control",
     "📊 Analytics",
@@ -256,9 +265,24 @@ elif menu == "🔌 Relay Control":
     new_r2 = st.toggle("Relay 2", r2)
     new_r3 = st.toggle("Relay 3", r3)
 
+    # 🔥 BLOCK USER REQUEST BEFORE OVERLOAD (SMART CONTROL)
+
+# Example for Relay 3
+if new_r3 and not r3:
+
+    future_load = predicted_load + 40  # approx bulb load
+
+    if future_load > threshold * 1000:
+        st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
+        speak("Overload detected. Please turn off another load.")
+
+        st.session_state.pending_request = "relay3"
+        new_r3 = False
+
     # 🔥 AI BASED CONTROL (INSIDE RELAY SECTION)
     if predicted_load > (threshold * 1000):  # convert kW → W
-        st.warning("⚠ AI Predicted Overload - Optimizing Load")
+        st.warning("⚠ AI Predicted Overload - Optimizing Load") 
+        speak("Overload detected. Optimizing load.")
 
         if predicted_load > 100:
             new_r3 = False
@@ -266,7 +290,19 @@ elif menu == "🔌 Relay Control":
             new_r2 = False
         if predicted_load > 120:
             new_r1 = False
+# 🔥 AUTO TURN ON PENDING LOAD
+if st.session_state.pending_request:
 
+    if predicted_load < threshold * 1000:
+
+        if st.session_state.pending_request == "relay3":
+            new_r3 = True
+
+        speak("Pending load turned on automatically.")
+        st.success("Pending load activated")
+
+        st.session_state.pending_request = None
+        
     # UPDATE FIREBASE
     ref.child("relay_control").set({
         "relay1": int(new_r1),
