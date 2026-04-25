@@ -25,7 +25,7 @@ def save_load_data(load, r1, r2, r3):
         writer.writerow([current_time, load, int(r1), int(r2), int(r3)])
         
 # AUTO REFRESH
-st_autorefresh(interval=3000, key="refresh")
+st_autorefresh(interval=1000, key="refresh")
 
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
