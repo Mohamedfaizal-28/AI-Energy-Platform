@@ -342,7 +342,7 @@ elif menu == "🔌 Relay Control":
         (1.5 if new_r2 else 0) +
         (1.0 if new_r3 else 0)
     )
-        st.write("Final Relay State (AI Controlled):")
+    st.write("Final Relay State (AI Controlled):")
     st.write({
         "Relay1": new_r1,
         "Relay2": new_r2,
