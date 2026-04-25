@@ -8,3 +8,4 @@ requests
 firebase-admin
 streamlit-autorefresh
 pytz
+gTTS
