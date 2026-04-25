@@ -255,7 +255,7 @@ elif menu == "🔌 Relay Control":
     # 🔥 BLOCK USER REQUEST BEFORE OVERLOAD
     if new_r3 and not r3:
 
-        future_load = predicted_load + 40
+        future_load = max(predicted_load, total_power * 1000) + 40
 
         if future_load > threshold * 1000:
             st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
@@ -302,22 +302,6 @@ elif menu == "🔌 Relay Control":
         (1.5 if new_r2 else 0) +
         (1.0 if new_r3 else 0)
     )
-
-    st.write("Final Relay State (AI Controlled):")
-    st.write({
-        "Relay1": new_r1,
-        "Relay2": new_r2,
-        "Relay3": new_r3
-    })
-
-    # UPDATE SLIDER
-    relay_total = (
-        (2.0 if new_r1 else 0) +
-        (1.5 if new_r2 else 0) +
-        (1.0 if new_r3 else 0)
-    )
-
-    st.session_state.sim = relay_total
 
     st.write("Final Relay State (AI Controlled):")
     st.write({
