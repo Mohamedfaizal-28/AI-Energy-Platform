@@ -109,8 +109,6 @@ if st.session_state.date != today:
 st.sidebar.title("⚙ Control Panel")
 
 menu = st.sidebar.radio("Navigation", [
-    if "pending_request" not in st.session_state:
-    st.session_state.pending_request = None
     "🏠 Dashboard",
     "🔌 Relay Control",
     "📊 Analytics",
@@ -118,7 +116,9 @@ menu = st.sidebar.radio("Navigation", [
 ])
 
 st.sidebar.write(f"User: {st.session_state.role}")
-
+if "pending_request" not in st.session_state:
+    st.session_state.pending_request = None
+    
 if st.sidebar.button("Logout"):
     st.session_state.login = False
     st.rerun()
@@ -265,12 +265,10 @@ elif menu == "🔌 Relay Control":
     new_r2 = st.toggle("Relay 2", r2)
     new_r3 = st.toggle("Relay 3", r3)
 
-    # 🔥 BLOCK USER REQUEST BEFORE OVERLOAD (SMART CONTROL)
-
-# Example for Relay 3
+    # 🔥 BLOCK USER REQUEST BEFORE OVERLOAD
 if new_r3 and not r3:
 
-    future_load = predicted_load + 40  # approx bulb load
+    future_load = predicted_load + 40
 
     if future_load > threshold * 1000:
         st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
@@ -279,17 +277,18 @@ if new_r3 and not r3:
         st.session_state.pending_request = "relay3"
         new_r3 = False
 
-    # 🔥 AI BASED CONTROL (INSIDE RELAY SECTION)
-    if predicted_load > (threshold * 1000):  # convert kW → W
-        st.warning("⚠ AI Predicted Overload - Optimizing Load") 
-        speak("Overload detected. Optimizing load.")
+# 🔥 AI REACTIVE CONTROL (existing)
+if predicted_load > (threshold * 1000):
+    st.warning("⚠ AI Predicted Overload - Optimizing Load")
+    speak("Overload detected. Optimizing load.")
 
-        if predicted_load > 100:
-            new_r3 = False
-        if predicted_load > 110:
-            new_r2 = False
-        if predicted_load > 120:
-            new_r1 = False
+    if predicted_load > 100:
+        new_r3 = False
+    if predicted_load > 110:
+        new_r2 = False
+    if predicted_load > 120:
+        new_r1 = False
+
 # 🔥 AUTO TURN ON PENDING LOAD
 if st.session_state.pending_request:
 
