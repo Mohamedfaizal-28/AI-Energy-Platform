@@ -36,9 +36,6 @@ if not st.session_state.get("is_speaking", False):
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
 def speak(text):
-    from gtts import gTTS
-    import tempfile, base64
-
     st.session_state.is_speaking = True
 
     tts = gTTS(text=text, lang='en')
@@ -49,15 +46,16 @@ def speak(text):
     audio_base64 = base64.b64encode(audio_bytes).decode()
 
     audio_html = f"""
-    <audio autoplay onended="fetch('/_stcore/streamlit/setComponentValue?value=done')">
+    <audio autoplay>
         <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
     </audio>
     """
 
     st.markdown(audio_html, unsafe_allow_html=True)
 
-    # Estimate speaking time (rough)
-    duration = max(3, len(text.split()) * 0.4)
+    # 🔥 IMPORTANT: reset after small delay
+    time.sleep(2)
+    st.session_state.is_speaking = False
 
 
     
@@ -284,7 +282,10 @@ elif menu == "🔌 Relay Control":
 
         if future_load > threshold * 1000:
             st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
-            speak("Overload detected. Please turn off another load.")
+            speak(
+                  "Warning. Turning on this load may cause overload. "
+                  "Please turn off another load to continue safely."
+            )
 
             st.session_state.pending_request = "relay3"
             new_r3 = False
