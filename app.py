@@ -211,7 +211,8 @@ if voltage == 0 or current < 0.01:
     st.session_state.graph_data.append({
         "Time": now.strftime("%H:%M:%S"),
         "Actual": power,
-        "Predicted": predicted_load
+        "Predicted": predicted_load,
+        "Error": abs(predicted_load - power)
     })
     
     # 🔥 LIMIT GRAPH SIZE
@@ -233,7 +234,8 @@ else:
     st.session_state.graph_data.append({
         "Time": now.strftime("%H:%M:%S"),
         "Actual": power,
-        "Predicted": predicted_load
+        "Predicted": predicted_load,
+        "Error": abs(predicted_load - power)
     })
     
     # 🔥 LIMIT GRAPH SIZE
@@ -355,7 +357,14 @@ elif menu == "📊 Analytics":
         
         df = df.set_index("Time")
         
-        st.line_chart(df)
+        df = pd.DataFrame(st.session_state.graph_data)
+        df = df.set_index("Time")
+        
+        st.subheader("Actual vs Predicted Load")
+        st.line_chart(df[["Actual", "Predicted"]])
+        
+        st.subheader("AI Prediction Error")
+        st.line_chart(df[["Error"]])
 
     else:
         st.warning("No data yet for this hour")
