@@ -12,9 +12,6 @@ import csv
 import time
 import pickle
 import numpy as np
-from gtts import gTTS
-import tempfile
-import base64
 
 def save_load_data(load, r1, r2, r3):
     from datetime import datetime
@@ -26,34 +23,11 @@ def save_load_data(load, r1, r2, r3):
 
 if "last_saved" not in st.session_state:
     st.session_state.last_saved = 0
-if "is_speaking" not in st.session_state:
-    st.session_state.is_speaking = False
     
-# AUTO REFRESH
-if not st.session_state.get("is_speaking", False):
-    st_autorefresh(interval=1000, key="refresh")
-
+st_autorefresh(interval=1000, key="refresh")
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
-def speak(text):
-    st.session_state.is_speaking = True
 
-    tts = gTTS(text=text, lang='en')
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tts.save(temp_file.name)
-
-    audio_bytes = open(temp_file.name, "rb").read()
-    audio_base64 = base64.b64encode(audio_bytes).decode()
-
-    audio_html = f"""
-    <audio autoplay>
-        <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-    </audio>
-    """
-
-    st.markdown(audio_html, unsafe_allow_html=True)
-    st.session_state.is_speaking = False
-    
 # 🎨 STYLE
 st.markdown("""
 <style>
@@ -146,6 +120,12 @@ if st.sidebar.button("Logout"):
 
 threshold = 3.6  # kW
 
+# 🔥 ADD BELOW threshold
+if "voltage_limit" not in st.session_state:
+    st.session_state.voltage_limit = 230
+
+voltage_limit = st.session_state.voltage_limit
+
 # ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
 relay = ref.child("relay_control").get()
@@ -156,6 +136,7 @@ if relay is None:
         "relay2": 0,
         "relay3": 0
     })
+    st.rerun()
     
 if sensor:
     voltage = float(sensor.get("voltage") or 0)
@@ -191,7 +172,7 @@ input_data = np.array([[voltage, current, temp, current_hour]])
 if voltage == 0 or current < 0.01:
     predicted_load = total_power * 1000  # fallback when sensor fails
 else:
-    predicted_load = max(power, model.predict(input_data)[0])
+    predicted_load = max(power * 1.2, model.predict(input_data)[0] + 20)
 
 # -------- SAVE DATA EVERY 5 SECONDS --------
 if "prev_load" not in st.session_state:
@@ -216,7 +197,6 @@ today_cost = today_energy * 8
 monthly_energy = st.session_state.monthly_energy.get(month, 0)
 monthly_cost = monthly_energy * 8
 
-# ================= DASHBOARD =================
 # ================= DASHBOARD =================
 if menu == "🏠 Dashboard":
 
@@ -255,67 +235,39 @@ if menu == "🏠 Dashboard":
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
     if total_power > threshold:
-        st.error("🔴 OVERLOAD")
+        st.error("🔴 OVERLOAD (Voltage Limit Exceeded)")
     else:
         st.success("🟢 NORMAL")
 
 # ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
 
+    st.subheader("⚡ Voltage Control")
+
+    voltage_limit = st.slider(
+        "Set Voltage Threshold",
+        200, 300, st.session_state.voltage_limit
+    )
+
+    st.session_state.voltage_limit = voltage_limit
+
     st.header("Relay Control")
 
-    new_r1 = st.toggle("Relay 1", r1)
-    new_r2 = st.toggle("Relay 2", r2)
-    new_r3 = st.toggle("Relay 3", r3)
+    new_r1 = st.toggle("Relay 1", value=r1)
+    new_r2 = st.toggle("Relay 2", value=r2)
+    new_r3 = st.toggle("Relay 3", value=r3)
 
-    # 🔥 BLOCK USER REQUEST BEFORE OVERLOAD
-    if new_r3 and not r3:
+    # 🔥 VOLTAGE BASED CONTROL
+    if voltage > voltage_limit:
 
-        future_load = max(predicted_load, total_power * 1000) + 40
+        st.warning("⚠ Voltage exceeded limit - Turning OFF priority load")
 
-        if future_load > threshold * 1000:
-
-            if not st.session_state.last_warning:
-                st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
-                speak(
-                    "Warning. Turning on this load may cause overload. "
-                    "Please turn off another load to continue safely."
-                )
-                st.session_state.last_warning = True
-
-            st.session_state.pending_request = "relay3"
+        if new_r3:
             new_r3 = False
-
-    # 🔥 AI REACTIVE CONTROL
-    if predicted_load > (threshold * 1000):
-
-        st.warning("⚠ AI Predicted Overload - Optimizing Load")
-
-        if not st.session_state.last_warning:
-            speak("Overload detected. Optimizing load.")
-            st.session_state.last_warning = True
-
-        if predicted_load > 100:
-            new_r3 = False
-        if predicted_load > 110:
+        elif new_r2:
             new_r2 = False
-        if predicted_load > 120:
+        elif new_r1:
             new_r1 = False
-
-    # 🔥 AUTO TURN ON PENDING LOAD
-    if st.session_state.pending_request:
-
-        if predicted_load < threshold * 1000:
-
-            st.session_state.last_warning = False
-
-            if st.session_state.pending_request == "relay3":
-                new_r3 = True
-
-            speak("Pending load turned on automatically.")
-            st.success("Pending load activated")
-
-            st.session_state.pending_request = None
 
     # 🔥 UPDATE FIREBASE
     ref.child("relay_control").set({
@@ -324,15 +276,7 @@ elif menu == "🔌 Relay Control":
         "relay3": int(new_r3)
     })
 
-
-
-    # UPDATE SLIDER
-    relay_total = (
-        (2.0 if new_r1 else 0) +
-        (1.5 if new_r2 else 0) +
-        (1.0 if new_r3 else 0)
-    )
-    st.write("Final Relay State (AI Controlled):")
+    st.write("Final Relay State:")
     st.write({
         "Relay1": new_r1,
         "Relay2": new_r2,
@@ -342,14 +286,22 @@ elif menu == "🔌 Relay Control":
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
 
-    st.header("Hourly Energy")
+    st.header("Actual vs Predicted Load")
 
-    df = pd.DataFrame({
-        "Hour": list(st.session_state.energy_log.keys()),
-        "Energy": list(st.session_state.energy_log.values())
+    if "history" not in st.session_state:
+        st.session_state.history = []
+
+    st.session_state.history.append({
+        "Actual": power,
+        "Predicted": predicted_load
     })
+    
+    if len(st.session_state.history) > 50:
+        st.session_state.history.pop(0)
 
-    st.bar_chart(df.set_index("Hour"))
+    df = pd.DataFrame(st.session_state.history)
+
+    st.line_chart(df)
 
 # ================= REPORT =================
 elif menu == "📄 Reports":
