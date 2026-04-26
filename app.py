@@ -208,6 +208,14 @@ input_data = np.array([[voltage, current, temp, current_hour]])
 # 🔥 FIX 2 (ADD HERE)
 if voltage == 0 or current < 0.01:
     predicted_load = total_power * 1000  # fallback when sensor fails
+    st.session_state.graph_data.append({
+        "Actual": power,
+        "Predicted": predicted_load
+    })
+    
+    # 🔥 LIMIT GRAPH SIZE
+    if len(st.session_state.graph_data) > 100:
+        st.session_state.graph_data.pop(0)
 else:
     pred = float(model.predict(input_data)[0])
 
@@ -225,6 +233,10 @@ else:
         "Actual": power,
         "Predicted": predicted_load
     })
+    
+    # 🔥 LIMIT GRAPH SIZE
+    if len(st.session_state.graph_data) > 100:
+        st.session_state.graph_data.pop(0)
 # -------- SAVE DATA EVERY 5 SECONDS --------
 if "prev_load" not in st.session_state:
     st.session_state.prev_load = None
@@ -289,7 +301,7 @@ if menu == "🏠 Dashboard":
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
     if total_power > threshold:
-        st.error("🔴 OVERLOAD (Voltage Limit Exceeded)")
+        st.error("🔴 OVERLOAD (Load Limit Exceeded)")
     else:
         st.success("🟢 NORMAL")
 
@@ -303,8 +315,6 @@ elif menu == "🔌 Relay Control":
         1.0, 7.0, 3.5
     )
 
-    st.session_state.voltage_limit = voltage_limit
-
     st.header("Relay Control")
 
     new_r1 = st.toggle("Relay 1", value=r1)
@@ -314,7 +324,7 @@ elif menu == "🔌 Relay Control":
     # 🔥 VOLTAGE BASED CONTROL
     if total_power > load_limit:
 
-        st.warning("⚠ Voltage exceeded limit - Turning OFF priority load")
+        st.warning("⚠ Load exceeded limit - Turning OFF priority load")
 
         if new_r3:
             new_r3 = False
