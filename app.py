@@ -52,6 +52,7 @@ def speak(text):
     """
 
     st.markdown(audio_html, unsafe_allow_html=True)
+    time.sleep(1)
     st.session_state.is_speaking = False
     
 # 🎨 STYLE
@@ -266,6 +267,84 @@ if menu == "🏠 Dashboard":
 
 # ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
+
+    st.header("Relay Control")
+
+    new_r1 = st.toggle("Relay 1", r1)
+    new_r2 = st.toggle("Relay 2", r2)
+    new_r3 = st.toggle("Relay 3", r3)
+
+    # 🔥 COUNT CURRENT LOADS
+    current_on = sum([r1, r2, r3])
+
+    # 🔥 DETECT WHICH RELAY USER WANTS
+    requested = None
+    if new_r1 and not r1:
+        requested = "relay1"
+    elif new_r2 and not r2:
+        requested = "relay2"
+    elif new_r3 and not r3:
+        requested = "relay3"
+
+    # 🔥 BLOCK IF MORE THAN 2 LOADS
+    if requested and current_on >= 2:
+
+        if not st.session_state.last_warning:
+            st.warning("⚠ Cannot turn ON more than 2 loads.")
+            speak(
+                "Warning. Turning on this load may cause overload. "
+                "Please turn off one load before turning on another."
+            )
+            st.session_state.last_warning = True
+
+        # 🔥 STORE WHICH LOAD WAS REQUESTED
+        st.session_state.pending_request = requested
+
+        # 🔥 CANCEL USER ACTION
+        new_r1 = r1
+        new_r2 = r2
+        new_r3 = r3
+
+    # 🔥 AUTO TURN ON PENDING LOAD
+    if st.session_state.pending_request:
+
+        current_on = sum([new_r1, new_r2, new_r3])
+
+        if current_on < 2:
+
+            req = st.session_state.pending_request
+
+            if req == "relay1":
+                new_r1 = True
+            elif req == "relay2":
+                new_r2 = True
+            elif req == "relay3":
+                new_r3 = True
+
+            speak("Pending load turned on automatically.")
+            st.success("Pending load activated")
+
+            st.session_state.pending_request = None
+            st.session_state.last_warning = False
+
+    # 🔥 UPDATE FIREBASE
+    ref.child("relay_control").set({
+        "relay1": int(new_r1),
+        "relay2": int(new_r2),
+        "relay3": int(new_r3)
+    })
+
+    st.write("Final Relay State (AI Controlled):")
+    st.write({
+        "Relay1": new_r1,
+        "Relay2": new_r2,
+        "Relay3": new_r3
+    })
+
+# ================= ANALYTICS =================
+elif menu == "📊 Analytics":
+
+    st.elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
 
