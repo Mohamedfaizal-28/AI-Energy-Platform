@@ -270,9 +270,9 @@ elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
 
-    new_r1 = st.toggle("Relay 1", r1)
-    new_r2 = st.toggle("Relay 2", r2)
-    new_r3 = st.toggle("Relay 3", r3)
+    new_r1 = st.toggle("Relay 1", r1, key="r1")
+    new_r2 = st.toggle("Relay 2", r2, key="r2")
+    new_r3 = st.toggle("Relay 3", r3, key="r3")
 
     # 🔥 COUNT CURRENT LOADS
     current_on = sum([r1, r2, r3])
@@ -289,7 +289,7 @@ elif menu == "🔌 Relay Control":
     # 🔥 BLOCK IF MORE THAN 2 LOADS
     if requested and current_on >= 2:
 
-        if not st.session_state.last_warning:
+        if not st.session_state.last_warning and not st.session_state.is_speaking:
             st.warning("⚠ Cannot turn ON more than 2 loads.")
             speak(
                 "Warning. Turning on this load may cause overload. "
@@ -306,7 +306,7 @@ elif menu == "🔌 Relay Control":
         new_r3 = r3
 
     # 🔥 AUTO TURN ON PENDING LOAD
-    if st.session_state.pending_request:
+    if st.session_state.pending_request and not st.session_state.is_speaking:
 
         current_on = sum([new_r1, new_r2, new_r3])
 
