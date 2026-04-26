@@ -12,9 +12,7 @@ import csv
 import time
 import pickle
 import numpy as np
-from gtts import gTTS
-import tempfile
-import base64
+
 
 def save_load_data(load, r1, r2, r3):
     from datetime import datetime
@@ -30,31 +28,11 @@ if "is_speaking" not in st.session_state:
     st.session_state.is_speaking = False
     
 # AUTO REFRESH
-if not st.session_state.get("is_speaking", False):
-    st_autorefresh(interval=1000, key="refresh")
+st_autorefresh(interval=2000, key="refresh")
 
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
-def speak(text):
-    st.session_state.is_speaking = True
 
-    tts = gTTS(text=text, lang='en')
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    tts.save(temp_file.name)
-
-    audio_bytes = open(temp_file.name, "rb").read()
-    audio_base64 = base64.b64encode(audio_bytes).decode()
-
-    audio_html = f"""
-    <audio autoplay>
-        <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-    </audio>
-    """
-
-    st.markdown(audio_html, unsafe_allow_html=True)
-    time.sleep(2)
-    st.session_state.is_speaking = False
-    
 # 🎨 STYLE
 st.markdown("""
 <style>
@@ -270,43 +248,44 @@ elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
 
-    new_r1 = st.toggle("Relay 1", r1, key="r1")
-    new_r2 = st.toggle("Relay 2", r2, key="r2")
-    new_r3 = st.toggle("Relay 3", r3, key="r3")
+    # 🔥 READ CURRENT STATE
+    r1_state = r1
+    r2_state = r2
+    r3_state = r3
 
-    # 🔥 COUNT CURRENT LOADS
-    current_on = sum([r1, r2, r3])
+    # 🔥 TOGGLE UI
+    new_r1 = st.toggle("Relay 1", r1_state)
+    new_r2 = st.toggle("Relay 2", r2_state)
+    new_r3 = st.toggle("Relay 3", r3_state)
 
-    # 🔥 DETECT WHICH RELAY USER WANTS
+    # 🔥 COUNT LOADS
+    current_on = sum([r1_state, r2_state, r3_state])
+
+    # 🔥 DETECT REQUEST
     requested = None
-    if new_r1 and not r1:
+    if new_r1 and not r1_state:
         requested = "relay1"
-    elif new_r2 and not r2:
+    elif new_r2 and not r2_state:
         requested = "relay2"
-    elif new_r3 and not r3:
+    elif new_r3 and not r3_state:
         requested = "relay3"
 
-    # 🔥 BLOCK IF MORE THAN 2 LOADS
+    # 🔥 BLOCK LOGIC
+    message = ""
+
     if requested and current_on >= 2:
 
-        if not st.session_state.last_warning and not st.session_state.is_speaking:
-            st.warning("⚠ Cannot turn ON more than 2 loads.")
-            speak(
-                "Warning. Turning on this load may cause overload. "
-                "Please turn off one load before turning on another."
-            )
-            st.session_state.last_warning = True
+        message = "⚠ Cannot turn ON more than 2 loads. Turn OFF one load first."
 
-        # 🔥 STORE WHICH LOAD WAS REQUESTED
+        # cancel action
+        new_r1 = r1_state
+        new_r2 = r2_state
+        new_r3 = r3_state
+
         st.session_state.pending_request = requested
 
-        # 🔥 CANCEL USER ACTION
-        new_r1 = r1
-        new_r2 = r2
-        new_r3 = r3
-
-    # 🔥 AUTO TURN ON PENDING LOAD
-    if st.session_state.pending_request and not st.session_state.is_speaking:
+    # 🔥 AUTO TURN ON PENDING
+    elif st.session_state.pending_request:
 
         current_on = sum([new_r1, new_r2, new_r3])
 
@@ -321,11 +300,9 @@ elif menu == "🔌 Relay Control":
             elif req == "relay3":
                 new_r3 = True
 
-            speak("Pending load turned on automatically.")
-            st.success("Pending load activated")
+            message = "✅ Pending load turned ON automatically."
 
             st.session_state.pending_request = None
-            st.session_state.last_warning = False
 
     # 🔥 UPDATE FIREBASE
     ref.child("relay_control").set({
@@ -334,13 +311,18 @@ elif menu == "🔌 Relay Control":
         "relay3": int(new_r3)
     })
 
-    st.write("Final Relay State (AI Controlled):")
+    # 🔥 SHOW STATUS
+    st.write("### Status:")
+    if message:
+        st.warning(message)
+    else:
+        st.success("System running normally")
+
     st.write({
         "Relay1": new_r1,
         "Relay2": new_r2,
         "Relay3": new_r3
     })
-
 
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
