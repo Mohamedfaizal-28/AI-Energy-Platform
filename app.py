@@ -259,9 +259,9 @@ elif menu == "🔌 Relay Control":
     state = st.session_state.relay_state
 
     # 🔥 TOGGLES (USE SESSION STATE)
-    new_r1 = st.toggle("Relay 1", state["relay1"], key="r1")
-    new_r2 = st.toggle("Relay 2", state["relay2"], key="r2")
-    new_r3 = st.toggle("Relay 3", state["relay3"], key="r3")
+    new_r1 = st.toggle("Relay 1", value=state["relay1"])
+    new_r2 = st.toggle("Relay 2", value=state["relay2"])
+    new_r3 = st.toggle("Relay 3", value=state["relay3"])
 
     # 🔥 COUNT CURRENT ACTIVE LOADS
     current_on = sum(state.values())
@@ -288,6 +288,8 @@ elif menu == "🔌 Relay Control":
         new_r1 = state["relay1"]
         new_r2 = state["relay2"]
         new_r3 = state["relay3"]
+        
+        st.rerun()
 
     # 🔥 APPLY USER ACTION (ONLY IF SAFE)
     else:
