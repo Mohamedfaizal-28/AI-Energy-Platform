@@ -144,7 +144,7 @@ if st.sidebar.button("Logout"):
     st.session_state.login = False
     st.rerun()
 
-threshold = 0.1  # kW
+threshold = 3.0  # kW
 
 # ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
