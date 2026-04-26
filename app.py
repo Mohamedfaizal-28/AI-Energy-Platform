@@ -291,22 +291,30 @@ elif menu == "🔌 Relay Control":
 
     # 🔥 APPLY USER ACTION (ONLY IF SAFE)
     else:
-        state["relay1"] = new_r1
-        state["relay2"] = new_r2
-        state["relay3"] = new_r3
+        # Apply ONLY real user changes
+        if new_r1 != state["relay1"]:
+            state["relay1"] = new_r1
+    
+        if new_r2 != state["relay2"]:
+            state["relay2"] = new_r2
+    
+        if new_r3 != state["relay3"]:
+            state["relay3"] = new_r3
 
     # 🔥 AUTO TURN ON PENDING (CORRECT LOGIC)
     if st.session_state.pending_request:
 
+        req = st.session_state.pending_request
+    
         current_on = sum(state.values())
-
-        if current_on < 2:
-
-            req = st.session_state.pending_request
+    
+        # ONLY trigger when user turned OFF exactly one load
+        if current_on == 1 and not state[req]:
+    
             state[req] = True
-
+    
             message = "✅ Pending load turned ON automatically."
-
+    
             st.session_state.pending_request = None
 
     # 🔥 UPDATE FIREBASE (ONLY FINAL STATE)
