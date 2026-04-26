@@ -143,6 +143,9 @@ if sensor:
     current = float(sensor.get("current") or 0)
     temp = float(sensor.get("temperature") or 0)
     power = float(sensor.get("power") or 0)
+    # 🔥 REMOVE NOISE
+    if power < 10:
+        power = 0
     energy = float(sensor.get("energy") or 0)
 else:
     voltage, current, temp, power, energy = 0, 0, 0, 0, 0
