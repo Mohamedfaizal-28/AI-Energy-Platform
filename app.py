@@ -175,7 +175,17 @@ input_data = np.array([[voltage, current, temp, current_hour]])
 if voltage == 0 or current < 0.01:
     predicted_load = total_power * 1000  # fallback when sensor fails
 else:
-    predicted_load = max(power * 1.2, model.predict(input_data)[0] + 20)
+    pred = float(model.predict(input_data)[0])
+
+    # 🔥 SMOOTHING (REMOVE JUMP)
+    if "prev_pred" not in st.session_state:
+        st.session_state.prev_pred = pred
+
+    pred = 0.7 * st.session_state.prev_pred + 0.3 * pred
+    st.session_state.prev_pred = pred
+
+    # 🔥 SMALL SAFETY MARGIN (NOT CONSTANT)
+    predicted_load = max(power * 1.03, pred * 1.05)
 
 # -------- SAVE DATA EVERY 5 SECONDS --------
 if "prev_load" not in st.session_state:
@@ -235,6 +245,8 @@ if menu == "🏠 Dashboard":
 
     st.metric("Total Load (kW)", round(total_power, 2))
     st.metric("Predicted Load (W)", round(predicted_load, 2))
+    error = abs(predicted_load - power)
+    st.metric("Prediction Error (W)", round(error, 2))
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
     if total_power > threshold:
