@@ -273,61 +273,63 @@ elif menu == "🔌 Relay Control":
     new_r2 = st.toggle("Relay 2", r2)
     new_r3 = st.toggle("Relay 3", r3)
 
-    # 🔥 COUNT CURRENT LOADS
+    # 🔥 COUNT CURRENT ACTIVE LOADS
     current_on = sum([r1, r2, r3])
 
-    # 🔥 CALCULATE FUTURE LOAD
-    future_load = max(predicted_load, total_power * 1000)
+    # 🔥 DETECT USER TRYING TO TURN ON ANY NEW LOAD
+    user_trying_on = (
+        (new_r1 and not r1) or
+        (new_r2 and not r2) or
+        (new_r3 and not r3)
+    )
 
-    # 🔥 BLOCK 3rd LOAD
-    if new_r3 and not r3:
+    # 🔥 BLOCK IF ALREADY 2 LOADS ARE ON
+    if user_trying_on and current_on >= 2:
 
-        if current_on >= 2:
-            reason = "Maximum load limit reached"
+        if not st.session_state.last_warning:
+            st.warning("⚠ Cannot turn ON more than 2 loads.")
+            speak(
+                "Warning. Maximum load limit reached. "
+                "Please turn off one load before turning on another."
+            )
+            st.session_state.last_warning = True
 
-        elif future_load > threshold * 1000:
-            reason = "AI predicted overload"
+        # 🔥 CANCEL USER ACTION (VERY IMPORTANT)
+        new_r1 = r1
+        new_r2 = r2
+        new_r3 = r3
 
-        else:
-            reason = None
+        st.session_state.pending_request = "waiting"
 
-        if reason:
-            if not st.session_state.last_warning:
-                st.warning(f"⚠ Cannot turn ON Relay 3. {reason}.")
-                speak(
-                    "Warning. Turning on this load may cause overload. "
-                    "Please turn off any one load."
-                )
-                st.session_state.last_warning = True
-
-            st.session_state.pending_request = "relay3"
-            new_r3 = False
-
-    # 🔥 AUTO TURN ON
+    # 🔥 AUTO TURN ON WHEN SAFE
     if st.session_state.pending_request:
 
         current_on = sum([new_r1, new_r2, new_r3])
-        future_load = max(predicted_load, total_power * 1000)
 
-        if current_on < 2 and future_load < threshold * 1000:
+        if current_on < 2:
 
-            st.session_state.last_warning = False
-
-            if st.session_state.pending_request == "relay3":
+            # TURN ON THE PENDING LOAD
+            if not new_r1:
+                new_r1 = True
+            elif not new_r2:
+                new_r2 = True
+            elif not new_r3:
                 new_r3 = True
 
             speak("Pending load turned on automatically.")
             st.success("Pending load activated")
 
             st.session_state.pending_request = None
+            st.session_state.last_warning = False
 
-    # 🔥 FINAL UPDATE (VERY IMPORTANT)
+    # 🔥 UPDATE FIREBASE
     ref.child("relay_control").set({
         "relay1": int(new_r1),
         "relay2": int(new_r2),
         "relay3": int(new_r3)
     })
 
+    # 🔥 DISPLAY FINAL STATE
     st.write("Final Relay State (AI Controlled):")
     st.write({
         "Relay1": new_r1,
