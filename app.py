@@ -207,8 +207,9 @@ input_data = np.array([[voltage, current, temp, current_hour]])
 
 # 🔥 FIX 2 (ADD HERE)
 if voltage == 0 or current < 0.01:
-    predicted_load = total_power * 1000  # fallback when sensor fails
+    predicted_load = power  # fallback when sensor fails
     st.session_state.graph_data.append({
+        "Time": now.strftime("%H:%M:%S"),
         "Actual": power,
         "Predicted": predicted_load
     })
@@ -230,6 +231,7 @@ else:
     predicted_load = max(power * 1.03, pred * 1.05)
     # 🔥 STORE CURRENT HOUR GRAPH DATA
     st.session_state.graph_data.append({
+        "Time": now.strftime("%H:%M:%S"),
         "Actual": power,
         "Predicted": predicted_load
     })
@@ -355,7 +357,9 @@ elif menu == "📊 Analytics":
     if st.session_state.graph_data:
 
         df = pd.DataFrame(st.session_state.graph_data)
-
+        
+        df = df.set_index("Time")
+        
         st.line_chart(df)
 
     else:
