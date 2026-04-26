@@ -21,6 +21,19 @@ def save_load_data(load, r1, r2, r3):
         writer = csv.writer(file)
         writer.writerow([current_time, load, int(r1), int(r2), int(r3)])
 
+def save_hourly_graph(power, predicted):
+    now = datetime.now()
+    hour_key = now.strftime("%Y-%m-%d_%H")
+
+    with open("hourly_data.csv", "a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            hour_key,
+            now.strftime("%H:%M:%S"),
+            power,
+            predicted
+        ])
+
 if "last_saved" not in st.session_state:
     st.session_state.last_saved = 0
     
@@ -65,6 +78,15 @@ now = datetime.now(india)
 today = now.strftime("%Y-%m-%d")
 month = now.strftime("%Y-%m")
 current_hour = now.hour
+if "graph_hour" not in st.session_state:
+    st.session_state.graph_hour = current_hour
+
+if "graph_data" not in st.session_state:
+    st.session_state.graph_data = []
+# 🔥 RESET GRAPH EVERY NEW HOUR
+if st.session_state.graph_hour != current_hour:
+    st.session_state.graph_hour = current_hour
+    st.session_state.graph_data = []   # clear graph
 # ---------------- FIREBASE ----------------
 if not firebase_admin._apps:
     firebase_secret = dict(st.secrets["firebase"])
@@ -143,6 +165,18 @@ if sensor:
     current = float(sensor.get("current") or 0)
     temp = float(sensor.get("temperature") or 0)
     power = float(sensor.get("power") or 0)
+    # 🔥 REMOVE SUDDEN ZERO SPIKES
+    if "prev_power" not in st.session_state:
+        st.session_state.prev_power = power
+    
+    # If sudden drop to zero, ignore once
+    if power == 0 and st.session_state.prev_power > 20:
+        power = st.session_state.prev_power
+    
+    # Smooth transition
+    power = 0.7 * st.session_state.prev_power + 0.3 * power
+    
+    st.session_state.prev_power = power
     # 🔥 REMOVE NOISE
     if power < 10:
         power = 0
@@ -186,7 +220,11 @@ else:
 
     # 🔥 SMALL SAFETY MARGIN (NOT CONSTANT)
     predicted_load = max(power * 1.03, pred * 1.05)
-
+    # 🔥 STORE CURRENT HOUR GRAPH DATA
+    st.session_state.graph_data.append({
+        "Actual": power,
+        "Predicted": predicted_load
+    })
 # -------- SAVE DATA EVERY 5 SECONDS --------
 if "prev_load" not in st.session_state:
     st.session_state.prev_load = None
@@ -194,6 +232,7 @@ if "prev_load" not in st.session_state:
 if time.time() - st.session_state.last_saved > 5:
     if st.session_state.prev_load != total_power:
         save_load_data(total_power, r1, r2, r3)
+        save_hourly_graph(power, predicted_load)
         st.session_state.prev_load = total_power
         st.session_state.last_saved = time.time()
 # ---------------- ENERGY ----------------
@@ -301,27 +340,36 @@ elif menu == "🔌 Relay Control":
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
 
-    st.header("Actual vs Predicted Load")
+    st.header("Actual vs Predicted Load (Hourly Live)")
 
-    if "history" not in st.session_state:
-        st.session_state.history = []
+    if st.session_state.graph_data:
 
-    st.session_state.history.append({
-        "Actual": power,
-        "Predicted": predicted_load
-    })
-    
-    if len(st.session_state.history) > 50:
-        st.session_state.history.pop(0)
+        df = pd.DataFrame(st.session_state.graph_data)
 
-    df = pd.DataFrame(st.session_state.history)
+        st.line_chart(df)
 
-    st.line_chart(df)
-
-# ================= REPORT =================
+    else:
+        st.warning("No data yet for this hour")
 elif menu == "📄 Reports":
 
     st.header("Reports")
+    st.subheader("📊 Weekly Hourly Graphs")
+    
+    try:
+        df = pd.read_csv("hourly_data.csv", header=None)
+        df.columns = ["Hour", "Time", "Actual", "Predicted"]
+    
+        df["Date"] = pd.to_datetime(df["Hour"].str[:10])
+        last_7_days = df[df["Date"] >= (datetime.now() - pd.Timedelta(days=7))]
+    
+        selected_hour = st.selectbox("Select Hour", last_7_days["Hour"].unique())
+    
+        df_selected = last_7_days[last_7_days["Hour"] == selected_hour]
+    
+        st.line_chart(df_selected[["Actual", "Predicted"]])
+    
+    except:
+        st.warning("No report data available")
 
     st.write("Daily Energy:", st.session_state.daily_energy)
     st.write("Monthly Energy:", st.session_state.monthly_energy)
