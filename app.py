@@ -289,14 +289,9 @@ if menu == "🏠 Dashboard":
     col1.metric("Voltage", f"{voltage} V")
     col2.metric("Current", f"{current} A")
     col3.metric("Temperature", f"{temp} °C")
-
-    st.metric("Live Power (W)", round(power, 2))
-    st.metric("Energy (kWh)", round(energy, 3))
-
     st.metric("Total Energy (kWh)", round(energy, 3))
     st.metric("Total Cost ₹", round(energy * 8, 2))
-
-    st.metric("Total Load (kW)", round(total_power, 2))
+    st.metric("Live Power (W)", round(power, 2))
     st.metric("Predicted Load (W)", round(predicted_load, 2))
     error = abs(predicted_load - power)
     st.metric("Prediction Error (W)", round(error, 2))
