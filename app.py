@@ -248,82 +248,82 @@ elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
 
-    # 🔥 READ CURRENT STATE
-    r1_state = r1
-    r2_state = r2
-    r3_state = r3
+    # 🔥 INIT SESSION RELAY STATE (VERY IMPORTANT)
+    if "relay_state" not in st.session_state:
+        st.session_state.relay_state = {
+            "relay1": r1,
+            "relay2": r2,
+            "relay3": r3
+        }
 
-    # 🔥 TOGGLE UI
-    new_r1 = st.toggle("Relay 1", r1_state)
-    new_r2 = st.toggle("Relay 2", r2_state)
-    new_r3 = st.toggle("Relay 3", r3_state)
+    state = st.session_state.relay_state
 
-    # 🔥 COUNT LOADS
-    current_on = sum([r1_state, r2_state, r3_state])
+    # 🔥 TOGGLES (USE SESSION STATE)
+    new_r1 = st.toggle("Relay 1", state["relay1"], key="r1")
+    new_r2 = st.toggle("Relay 2", state["relay2"], key="r2")
+    new_r3 = st.toggle("Relay 3", state["relay3"], key="r3")
+
+    # 🔥 COUNT CURRENT ACTIVE LOADS
+    current_on = sum(state.values())
 
     # 🔥 DETECT REQUEST
     requested = None
-    if new_r1 and not r1_state:
+    if new_r1 and not state["relay1"]:
         requested = "relay1"
-    elif new_r2 and not r2_state:
+    elif new_r2 and not state["relay2"]:
         requested = "relay2"
-    elif new_r3 and not r3_state:
+    elif new_r3 and not state["relay3"]:
         requested = "relay3"
 
-    # 🔥 BLOCK LOGIC
     message = ""
 
+    # 🔥 BLOCK LOGIC
     if requested and current_on >= 2:
 
-        message = "⚠ Cannot turn ON more than 2 loads. Turn OFF one load first."
-
-        # cancel action
-        new_r1 = r1_state
-        new_r2 = r2_state
-        new_r3 = r3_state
+        message = "⚠ Turning this load may cause overload. Please turn OFF any load to prevent overload."
 
         st.session_state.pending_request = requested
 
-    # 🔥 AUTO TURN ON PENDING
-    elif st.session_state.pending_request:
+        # cancel action
+        new_r1 = state["relay1"]
+        new_r2 = state["relay2"]
+        new_r3 = state["relay3"]
 
-        current_on = sum([new_r1, new_r2, new_r3])
+    # 🔥 APPLY USER ACTION (ONLY IF SAFE)
+    else:
+        state["relay1"] = new_r1
+        state["relay2"] = new_r2
+        state["relay3"] = new_r3
+
+    # 🔥 AUTO TURN ON PENDING (CORRECT LOGIC)
+    if st.session_state.pending_request:
+
+        current_on = sum(state.values())
 
         if current_on < 2:
 
             req = st.session_state.pending_request
-
-            if req == "relay1":
-                new_r1 = True
-            elif req == "relay2":
-                new_r2 = True
-            elif req == "relay3":
-                new_r3 = True
+            state[req] = True
 
             message = "✅ Pending load turned ON automatically."
 
             st.session_state.pending_request = None
 
-    # 🔥 UPDATE FIREBASE
+    # 🔥 UPDATE FIREBASE (ONLY FINAL STATE)
     ref.child("relay_control").set({
-        "relay1": int(new_r1),
-        "relay2": int(new_r2),
-        "relay3": int(new_r3)
+        "relay1": int(state["relay1"]),
+        "relay2": int(state["relay2"]),
+        "relay3": int(state["relay3"])
     })
 
-    # 🔥 SHOW STATUS
+    # 🔥 SHOW MESSAGE
     st.write("### Status:")
     if message:
         st.warning(message)
     else:
         st.success("System running normally")
 
-    st.write({
-        "Relay1": new_r1,
-        "Relay2": new_r2,
-        "Relay3": new_r3
-    })
-
+    st.write(state)
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
 
