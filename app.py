@@ -12,7 +12,9 @@ import csv
 import time
 import pickle
 import numpy as np
-
+from gtts import gTTS
+import tempfile
+import base64
 
 def save_load_data(load, r1, r2, r3):
     from datetime import datetime
@@ -28,11 +30,30 @@ if "is_speaking" not in st.session_state:
     st.session_state.is_speaking = False
     
 # AUTO REFRESH
-st_autorefresh(interval=2000, key="refresh")
+if not st.session_state.get("is_speaking", False):
+    st_autorefresh(interval=1000, key="refresh")
 
 # PAGE
 st.set_page_config(page_title="AI Energy SCADA", layout="wide")
+def speak(text):
+    st.session_state.is_speaking = True
 
+    tts = gTTS(text=text, lang='en')
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    tts.save(temp_file.name)
+
+    audio_bytes = open(temp_file.name, "rb").read()
+    audio_base64 = base64.b64encode(audio_bytes).decode()
+
+    audio_html = f"""
+    <audio autoplay>
+        <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+    </audio>
+    """
+
+    st.markdown(audio_html, unsafe_allow_html=True)
+    st.session_state.is_speaking = False
+    
 # 🎨 STYLE
 st.markdown("""
 <style>
@@ -248,92 +269,81 @@ elif menu == "🔌 Relay Control":
 
     st.header("Relay Control")
 
-    # 🔥 INIT SESSION RELAY STATE (VERY IMPORTANT)
-    if "relay_state" not in st.session_state:
-        st.session_state.relay_state = {
-            "relay1": r1,
-            "relay2": r2,
-            "relay3": r3
-        }
+    new_r1 = st.toggle("Relay 1", r1)
+    new_r2 = st.toggle("Relay 2", r2)
+    new_r3 = st.toggle("Relay 3", r3)
 
-    state = st.session_state.relay_state
+    # 🔥 BLOCK USER REQUEST BEFORE OVERLOAD
+    if new_r3 and not r3:
 
-    # 🔥 TOGGLES (USE SESSION STATE)
-    new_r1 = st.toggle("Relay 1", value=state["relay1"])
-    new_r2 = st.toggle("Relay 2", value=state["relay2"])
-    new_r3 = st.toggle("Relay 3", value=state["relay3"])
+        future_load = max(predicted_load, total_power * 1000) + 40
 
-    # 🔥 COUNT CURRENT ACTIVE LOADS
-    current_on = sum(state.values())
+        if future_load > threshold * 1000:
 
-    # 🔥 DETECT REQUEST
-    requested = None
-    if new_r1 and not state["relay1"]:
-        requested = "relay1"
-    elif new_r2 and not state["relay2"]:
-        requested = "relay2"
-    elif new_r3 and not state["relay3"]:
-        requested = "relay3"
+            if not st.session_state.last_warning:
+                st.warning("⚠ Cannot turn ON Relay 3. Overload will occur.")
+                speak(
+                    "Warning. Turning on this load may cause overload. "
+                    "Please turn off another load to continue safely."
+                )
+                st.session_state.last_warning = True
 
-    message = ""
+            st.session_state.pending_request = "relay3"
+            new_r3 = False
 
-    # 🔥 BLOCK LOGIC
-    if requested and current_on >= 2:
+    # 🔥 AI REACTIVE CONTROL
+    if predicted_load > (threshold * 1000):
 
-        message = "⚠ Turning this load may cause overload. Please turn OFF any load to prevent overload."
+        st.warning("⚠ AI Predicted Overload - Optimizing Load")
 
-        st.session_state.pending_request = requested
+        if not st.session_state.last_warning:
+            speak("Overload detected. Optimizing load.")
+            st.session_state.last_warning = True
 
-        # cancel action
-        new_r1 = state["relay1"]
-        new_r2 = state["relay2"]
-        new_r3 = state["relay3"]
-        
-        st.rerun()
+        if predicted_load > 100:
+            new_r3 = False
+        if predicted_load > 110:
+            new_r2 = False
+        if predicted_load > 120:
+            new_r1 = False
 
-    # 🔥 APPLY USER ACTION (ONLY IF SAFE)
-    else:
-        # Apply ONLY real user changes
-        if new_r1 != state["relay1"]:
-            state["relay1"] = new_r1
-    
-        if new_r2 != state["relay2"]:
-            state["relay2"] = new_r2
-    
-        if new_r3 != state["relay3"]:
-            state["relay3"] = new_r3
-
-    # 🔥 AUTO TURN ON PENDING (CORRECT LOGIC)
+    # 🔥 AUTO TURN ON PENDING LOAD
     if st.session_state.pending_request:
 
-        req = st.session_state.pending_request
-    
-        current_on = sum(state.values())
-    
-        # ONLY trigger when user turned OFF exactly one load
-        if current_on == 1 and not state[req]:
-    
-            state[req] = True
-    
-            message = "✅ Pending load turned ON automatically."
-    
+        if predicted_load < threshold * 1000:
+
+            st.session_state.last_warning = False
+
+            if st.session_state.pending_request == "relay3":
+                new_r3 = True
+
+            speak("Pending load turned on automatically.")
+            st.success("Pending load activated")
+
             st.session_state.pending_request = None
 
-    # 🔥 UPDATE FIREBASE (ONLY FINAL STATE)
+    # 🔥 UPDATE FIREBASE
     ref.child("relay_control").set({
-        "relay1": int(state["relay1"]),
-        "relay2": int(state["relay2"]),
-        "relay3": int(state["relay3"])
+        "relay1": int(new_r1),
+        "relay2": int(new_r2),
+        "relay3": int(new_r3)
     })
 
-    # 🔥 SHOW MESSAGE
-    st.write("### Status:")
-    if message:
-        st.warning(message)
-    else:
-        st.success("System running normally")
 
-    st.write(state)
+
+    # UPDATE SLIDER
+    relay_total = (
+        (2.0 if new_r1 else 0) +
+        (1.5 if new_r2 else 0) +
+        (1.0 if new_r3 else 0)
+    )
+    st.write("Final Relay State (AI Controlled):")
+    st.write({
+        "Relay1": new_r1,
+        "Relay2": new_r2,
+        "Relay3": new_r3
+    })
+
 # ================= ANALYTICS =================
 elif menu == "📊 Analytics":
 
