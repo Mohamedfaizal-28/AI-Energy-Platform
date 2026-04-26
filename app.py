@@ -144,7 +144,7 @@ if st.sidebar.button("Logout"):
     st.session_state.login = False
     st.rerun()
 
-threshold = 3.0  # kW
+threshold = 3.6  # kW
 
 # ---------------- FIREBASE DATA ----------------
 sensor = ref.child("sensor_data").get()
@@ -191,7 +191,7 @@ input_data = np.array([[voltage, current, temp, current_hour]])
 if voltage == 0 or current < 0.01:
     predicted_load = total_power * 1000  # fallback when sensor fails
 else:
-    predicted_load = max(0, model.predict(input_data)[0])
+    predicted_load = max(power, model.predict(input_data)[0])
 
 # -------- SAVE DATA EVERY 5 SECONDS --------
 if "prev_load" not in st.session_state:
@@ -247,13 +247,8 @@ if menu == "🏠 Dashboard":
     st.metric("Live Power (W)", round(power, 2))
     st.metric("Energy (kWh)", round(energy, 3))
 
-    col4, col5 = st.columns(2)
-    col4.metric("Today Energy", round(today_energy, 3))
-    col5.metric("Today Cost ₹", round(today_cost, 2))
-
-    col6, col7 = st.columns(2)
-    col6.metric("Monthly Energy", round(monthly_energy, 3))
-    col7.metric("Monthly Cost ₹", round(monthly_cost, 2))
+    st.metric("Total Energy (kWh)", round(energy, 3))
+    st.metric("Total Cost ₹", round(energy * 8, 2))
 
     st.metric("Total Load (kW)", round(total_power, 2))
     st.metric("Predicted Load (W)", round(predicted_load, 2))
