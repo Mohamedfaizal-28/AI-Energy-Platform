@@ -307,13 +307,7 @@ if menu == "🏠 Dashboard":
 # ================= RELAY CONTROL =================
 elif menu == "🔌 Relay Control":
 
-    st.subheader("⚡ Load Limit Control")
-
-    load_limit = st.slider(
-        "Set Maximum Load (kW)",
-        1.0, 7.0, 3.5
-    )
-
+    load_limit = 110   # threshold in Watts
     st.header("Relay Control")
 
     new_r1 = st.toggle("Relay 1", value=r1)
@@ -321,7 +315,7 @@ elif menu == "🔌 Relay Control":
     new_r3 = st.toggle("Relay 3", value=r3)
 
     # 🔥 VOLTAGE BASED CONTROL
-    if total_power > load_limit:
+    if power > load_limit or predicted_load > load_limit:
 
         st.warning("⚠ Load exceeded limit - Turning OFF priority load")
 
