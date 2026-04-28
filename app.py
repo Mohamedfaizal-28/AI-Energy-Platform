@@ -299,7 +299,7 @@ if menu == "🏠 Dashboard":
     st.metric("Prediction Error (W)", round(error, 2))
     st.info(f"🕒 Time: {now.strftime('%H:%M:%S')}")
 
-    if total_power > threshold:
+    if power > 110 or predicted_load > 110:
         st.error("🔴 OVERLOAD (Load Limit Exceeded)")
     else:
         st.success("🟢 NORMAL")
@@ -313,6 +313,23 @@ elif menu == "🔌 Relay Control":
     new_r1 = st.toggle("Relay 1", value=r1)
     new_r2 = st.toggle("Relay 2", value=r2)
     new_r3 = st.toggle("Relay 3", value=r3)
+    
+    # 🔥 COUNT ACTIVE RELAYS
+    active_relays = sum([new_r1, new_r2, new_r3])
+    
+    # 🔥 LIMIT: ONLY 2 RELAYS ALLOWED
+    if active_relays > 2:
+        st.error("⚠ By turning ON this load, may cause overload!")
+    
+        st.warning("👉 Turn OFF one load to use this relay")
+    
+        # Block last turned relay (priority: R3 > R2 > R1)
+        if new_r3:
+            new_r3 = False
+        elif new_r2:
+            new_r2 = False
+        elif new_r1:
+            new_r1 = False
     
     # 🔥 AI BASED AUTO CONTROL (STRONG LOGIC)
     overload = (power > load_limit) or (predicted_load > load_limit)
