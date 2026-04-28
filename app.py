@@ -193,9 +193,9 @@ else:
 
 # ---------------- RELAY LOAD ----------------
 relay_total = (
-    (2.0 if r1 else 0) +
-    (1.5 if r2 else 0) +
-    (1.0 if r3 else 0)
+    (40 if r1 else 0) +
+    (40 if r2 else 0) +
+    (40 if r3 else 0)
 )
 
 relay_total = float(max(0.0, min(relay_total, 7.0)))
@@ -313,18 +313,23 @@ elif menu == "🔌 Relay Control":
     new_r1 = st.toggle("Relay 1", value=r1)
     new_r2 = st.toggle("Relay 2", value=r2)
     new_r3 = st.toggle("Relay 3", value=r3)
-
-    # 🔥 VOLTAGE BASED CONTROL
-    if power > load_limit or predicted_load > load_limit:
-
-        st.warning("⚠ Load exceeded limit - Turning OFF priority load")
-
+    
+    # 🔥 AI BASED AUTO CONTROL (STRONG LOGIC)
+    overload = (power > load_limit) or (predicted_load > load_limit)
+    
+    if overload:
+        st.warning("⚠ AI detected overload - Turning OFF low priority load")
+    
+        # Priority: Relay3 → Relay2 → Relay1
         if new_r3:
             new_r3 = False
         elif new_r2:
             new_r2 = False
         elif new_r1:
             new_r1 = False
+    
+        # 🔴 FORCE UI UPDATE
+        st.rerun()
 
     # 🔥 UPDATE FIREBASE
     ref.child("relay_control").set({
